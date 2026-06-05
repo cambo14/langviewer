@@ -27,53 +27,39 @@ CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
 OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE. */
 
-
-
-use std::path::PathBuf;
-
-mod helpers;
-mod dfa_mode;
-use iced::Element;
-use iced::widget::{
-   operation, column, row,};
-
-const WINDOW: &str = "window";
+use iced::mouse;
+use iced::widget::{canvas};
+use iced::{Color, Rectangle, Renderer, Theme};
 
 #[derive(Debug, Clone, Copy)]
-enum Message {
-   DfaMode
+pub enum Message{
+    AddNode,
+    DelNode,
+    AddCon,
+    RemCon
 }
 
-pub fn initialise() -> iced::Result {
-   iced::application(GraphicsInstance::new, GraphicsInstance::update, GraphicsInstance::view)
-      .run()
+#[derive(Debug)]
+pub struct DfaWindow {
+
 }
 
-pub struct GraphicsInstance{
-   file: Option<PathBuf>,
+impl <Message> canvas::Program<Message> for DfaWindow {
+   fn draw(&self, _state: &(), renderer: &Renderer, _theme: &Theme, bounds: Rectangle, _cursor: mouse::Cursor) -> Vec<canvas::Geometry> {
+      let mut frame = canvas::Frame::new(renderer, bounds.size());
+
+      let circle = canvas::Path::circle(frame.center(), 15.0);
+
+      frame.fill(&circle, Color::BLACK);
+
+      vec![frame.into_geometry()]
+   }
+   
+   type State = ();
+   
+
 }
 
-impl GraphicsInstance{
-   fn new() -> (Self, iced::Task<Message>){
-      (Self{
-         file: None
-      },
-      operation::focus(WINDOW),)
-   }
-
-   fn view(& self) -> Element<'_, Message>{
-      let toolbar = row![
-         helpers::toolbar_button("DFA Creation", "DFA Creation mode", Some(Message::DfaMode)),];
-      column![toolbar, dfa_mode::view()].into()
-   }
-
-   fn update(&mut self, message: Message) -> iced::Task<Message>{
-      match message{
-         Message::DfaMode => {
-            log::debug!("DFA Creation mode entered");
-         }
-      }
-      iced::Task::none()
-   }
-
+pub fn view<'a, Message: 'a>() -> iced::Element<'a, Message> {
+   canvas(DfaWindow {}).into()
 }

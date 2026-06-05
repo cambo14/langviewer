@@ -27,53 +27,21 @@ CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
 OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE. */
 
-
-
-use std::path::PathBuf;
-
-mod helpers;
-mod dfa_mode;
-use iced::Element;
 use iced::widget::{
-   operation, column, row,};
+    button, center_x, container,tooltip,};
+use iced::Element;
 
-const WINDOW: &str = "window";
+pub fn toolbar_button<'a, Message:Clone + 'a>(
+      content: impl Into<Element<'a, Message>>,
+      label: &'a str,
+      on_press: Option<Message>,
+   ) -> Element<'a, Message>{
+      let but = button(center_x(content).width(25));
 
-#[derive(Debug, Clone, Copy)]
-enum Message {
-   DfaMode
-}
-
-pub fn initialise() -> iced::Result {
-   iced::application(GraphicsInstance::new, GraphicsInstance::update, GraphicsInstance::view)
-      .run()
-}
-
-pub struct GraphicsInstance{
-   file: Option<PathBuf>,
-}
-
-impl GraphicsInstance{
-   fn new() -> (Self, iced::Task<Message>){
-      (Self{
-         file: None
-      },
-      operation::focus(WINDOW),)
-   }
-
-   fn view(& self) -> Element<'_, Message>{
-      let toolbar = row![
-         helpers::toolbar_button("DFA Creation", "DFA Creation mode", Some(Message::DfaMode)),];
-      column![toolbar, dfa_mode::view()].into()
-   }
-
-   fn update(&mut self, message: Message) -> iced::Task<Message>{
-      match message{
-         Message::DfaMode => {
-            log::debug!("DFA Creation mode entered");
-         }
+      if let Some(on_press) = on_press{
+         tooltip(but.on_press(on_press), label, tooltip::Position::FollowCursor,)
+         .style(container::bordered_box).into()
+      } else {
+         but.style(button::secondary).into()
       }
-      iced::Task::none()
-   }
-
 }
