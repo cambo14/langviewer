@@ -63,3 +63,8 @@ impl <Message> canvas::Program<Message> for DfaWindow {
 pub fn view<'a, Message: 'a>() -> iced::Element<'a, Message> {
    canvas(DfaWindow {}).into()
 }
+
+pub struct Node {
+   pos: (f32, f32),
+   is_accepting: bool,
+   is_initial: bool,}
