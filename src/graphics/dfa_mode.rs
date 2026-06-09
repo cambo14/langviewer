@@ -31,6 +31,7 @@ use iced::mouse::{self};
 use iced::widget::{canvas};
 use iced::{Color, Rectangle, Renderer, Theme};
 
+#[allow(dead_code)]
 #[derive(Debug, Clone, Copy)]
 pub enum Message{
     AddNode {pos: iced::Point<f32>},
@@ -39,12 +40,20 @@ pub enum Message{
     RemCon
 }
 
+#[allow(dead_code)]
 #[derive(Debug)]
-pub struct DfaWindow {
-
+pub struct DfaWindow<'a> {
+   pub dfa: &'a DfaInstance,
 }
 
-impl canvas::Program<Message> for DfaWindow {
+#[allow(dead_code)]
+#[derive(Debug)]
+pub struct DfaInstance {
+   pub nodes: Vec<Node>,
+   pub edges: Vec<Edge>,
+}
+
+impl<'a> canvas::Program<Message> for DfaWindow<'a> {
    fn draw(&self, _state: &Interaction, renderer: &Renderer, _theme: &Theme, bounds: Rectangle, _cursor: mouse::Cursor) -> Vec<canvas::Geometry> {
       let mut frame = canvas::Frame::new(renderer, bounds.size());
 
@@ -56,7 +65,7 @@ impl canvas::Program<Message> for DfaWindow {
    }
 
    fn update(&self, interaction: &mut Interaction,
-         event: &canvas::Event, bounds: Rectangle,
+         event: &canvas::Event, _bounds: Rectangle,
          cursor: mouse::Cursor) -> Option<canvas::Action<Message>>
    {
       match event {
@@ -84,26 +93,33 @@ impl canvas::Program<Message> for DfaWindow {
 
 }
 
-impl DfaWindow {
-   pub fn view(&self) -> iced::Element<'_, Message> {
+impl <'a>DfaWindow<'a> {
+   pub fn view(self) -> iced::Element<'a, Message> {
       canvas::Canvas::new(self).width(iced::Fill).height(iced::Fill).into()
    }
 }
 
-pub fn is_node(pos: iced::Point<f32>) -> bool {
+pub fn is_node(_pos: iced::Point<f32>) -> bool {
    return false;
 }
 
+#[allow(dead_code)]
+#[derive(Debug)]
 pub struct Node {
    pos: iced::Point<f32>,
    is_accepting: bool,
-   is_initial: bool,}
+   is_initial: bool,
+}
 
+#[allow(dead_code)]
+#[derive(Debug)]
 pub struct Edge {
    start: Option<usize>,
    end: usize,
    symbol: char,
 }
+
+#[allow(dead_code)]
 #[derive(Default)]
 pub enum Interaction {
    #[default]

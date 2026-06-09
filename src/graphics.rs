@@ -40,11 +40,13 @@ const WINDOW: &str = "window";
 
 #[derive(Debug, Clone, Copy)]
 enum Message {
-   DfaMode
+   DfaMode,
+   DfaMessage(dfa_mode::Message),
 }
 
+#[allow(dead_code)]
 enum EditorMode {
-   Dfa {nodes: Vec<dfa_mode::Node>, edges: Vec<dfa_mode::Edge>},
+   Dfa {dfa: dfa_mode::DfaInstance},
    Nfa,
    Regex,
    Cfg,
@@ -56,14 +58,17 @@ pub fn initialise() -> iced::Result {
       .run()
 }
 
+#[allow(dead_code)]
 pub struct GraphicsInstance{
    file: Option<PathBuf>,
+   mode: EditorMode,
 }
 
 impl GraphicsInstance{
    fn new() -> (Self, iced::Task<Message>){
       (Self{
-         file: None
+         file: None,
+         mode: EditorMode::Empty,
       },
       operation::focus(WINDOW),)
    }
@@ -71,13 +76,22 @@ impl GraphicsInstance{
    fn view(& self) -> Element<'_, Message>{
       let toolbar = row![
          toolbar_button("DFA Creation", "DFA Creation mode", Some(Message::DfaMode)),];
-      column![toolbar].into() //TODO: add DFAWindow
+      let content: Element<'_, Message> = match &self.mode {
+         EditorMode::Dfa { dfa  } => dfa_mode::DfaWindow{dfa: dfa}.view().map(Message::DfaMessage),
+         _ => iced::widget::text("").into(),
+      };
+      column![toolbar, content].into()
    }
 
    fn update(&mut self, message: Message) -> iced::Task<Message>{
       match message{
          Message::DfaMode => {
             log::debug!("DFA Creation mode entered");
+            self.mode = EditorMode::Dfa { dfa: dfa_mode::DfaInstance { nodes: Vec::new(), edges: Vec::new() } };
+         }
+         Message::DfaMessage(dfa_msg) => {
+            log::debug!("DfaMessage received: {:?}", dfa_msg);
+            // Handle DFA message...
          }
       }
       iced::Task::none()
@@ -90,7 +104,9 @@ fn toolbar_button<'a, Message:Clone + 'a>(
       label: &'a str,
       on_press: Option<Message>,
    ) -> Element<'a, Message>{
-      let but = button(center_x(content).width(25));
+      let but = button(center_x(content).width(iced::Length::Fill))
+         .padding(10)
+         .width(iced::Length::Shrink);
 
       if let Some(on_press) = on_press{
          tooltip(but.on_press(on_press), label, tooltip::Position::FollowCursor,)
