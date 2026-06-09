@@ -6,3 +6,4 @@ edition = "2024"
 [dependencies]
 iced = {version = "0.14.0", features = ["canvas"]}
 log = "0.4.32"
+rstar = "0.13.0"

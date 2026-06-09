@@ -35,6 +35,7 @@ mod dfa_mode;
 use iced::Element;
 use iced::widget::{
    button, center_x, column, container, operation, row, tooltip};
+use rstar::RTree;
 
 const WINDOW: &str = "window";
 
@@ -58,7 +59,7 @@ pub fn initialise() -> iced::Result {
       .run()
 }
 
-#[allow(dead_code)]
+#[allow(dead_code)] //TODO: Remove on file save addition
 pub struct GraphicsInstance{
    file: Option<PathBuf>,
    mode: EditorMode,
@@ -87,7 +88,7 @@ impl GraphicsInstance{
       match message{
          Message::DfaMode => {
             log::debug!("DFA Creation mode entered");
-            self.mode = EditorMode::Dfa { dfa: dfa_mode::DfaInstance { nodes: Vec::new(), edges: Vec::new() } };
+            self.mode = EditorMode::Dfa { dfa: dfa_mode::DfaInstance { nodes: RTree::new(), edges: Vec::new() } };
          }
          Message::DfaMessage(dfa_msg) => {
             log::debug!("DfaMessage received: {:?}", dfa_msg);
