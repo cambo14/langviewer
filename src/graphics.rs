@@ -44,7 +44,7 @@ enum Message {
 }
 
 enum EditorMode {
-   Dfa {nodes: Vec<dfa_mode::Node>},
+   Dfa {nodes: Vec<dfa_mode::Node>, edges: Vec<dfa_mode::Edge>},
    Nfa,
    Regex,
    Cfg,
@@ -71,7 +71,7 @@ impl GraphicsInstance{
    fn view(& self) -> Element<'_, Message>{
       let toolbar = row![
          toolbar_button("DFA Creation", "DFA Creation mode", Some(Message::DfaMode)),];
-      column![toolbar, dfa_mode::view()].into()
+      column![toolbar].into() //TODO: add DFAWindow
    }
 
    fn update(&mut self, message: Message) -> iced::Task<Message>{

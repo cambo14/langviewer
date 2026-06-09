@@ -27,13 +27,13 @@ CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
 OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE. */
 
-use iced::mouse;
+use iced::mouse::{self};
 use iced::widget::{canvas};
 use iced::{Color, Rectangle, Renderer, Theme};
 
 #[derive(Debug, Clone, Copy)]
 pub enum Message{
-    AddNode,
+    AddNode {pos: iced::Point<f32>},
     DelNode,
     AddCon,
     RemCon
@@ -44,8 +44,8 @@ pub struct DfaWindow {
 
 }
 
-impl <Message> canvas::Program<Message> for DfaWindow {
-   fn draw(&self, _state: &(), renderer: &Renderer, _theme: &Theme, bounds: Rectangle, _cursor: mouse::Cursor) -> Vec<canvas::Geometry> {
+impl canvas::Program<Message> for DfaWindow {
+   fn draw(&self, _state: &Interaction, renderer: &Renderer, _theme: &Theme, bounds: Rectangle, _cursor: mouse::Cursor) -> Vec<canvas::Geometry> {
       let mut frame = canvas::Frame::new(renderer, bounds.size());
 
       let circle = canvas::Path::circle(frame.center(), 15.0);
@@ -54,17 +54,62 @@ impl <Message> canvas::Program<Message> for DfaWindow {
 
       vec![frame.into_geometry()]
    }
+
+   fn update(&self, interaction: &mut Interaction,
+         event: &canvas::Event, bounds: Rectangle,
+         cursor: mouse::Cursor) -> Option<canvas::Action<Message>>
+   {
+      match event {
+         canvas::Event::Mouse(mouse::Event::ButtonPressed(mouse::Button::Right)) => {
+            let (exists, pos) = (cursor.position().is_some(),
+               cursor.position().unwrap_or(iced::Point::default()));
+            let message = {
+               *interaction = if exists && is_node(pos) {
+                  Interaction::DelNode
+               } else {
+                  Interaction::AddNode
+               };
+               Some(Message::AddNode {pos})
+            };
+
+            Some(message.map(canvas::Action::publish)
+               .unwrap_or(canvas::Action::request_redraw()).and_capture(),)
+        }
+         _ => None
+      }
+   }
    
-   type State = ();
+   type State = Interaction;
    
 
 }
 
-pub fn view<'a, Message: 'a>() -> iced::Element<'a, Message> {
-   canvas(DfaWindow {}).into()
+impl DfaWindow {
+   pub fn view(&self) -> iced::Element<'_, Message> {
+      canvas::Canvas::new(self).width(iced::Fill).height(iced::Fill).into()
+   }
+}
+
+pub fn is_node(pos: iced::Point<f32>) -> bool {
+   return false;
 }
 
 pub struct Node {
-   pos: (f32, f32),
+   pos: iced::Point<f32>,
    is_accepting: bool,
    is_initial: bool,}
+
+pub struct Edge {
+   start: Option<usize>,
+   end: usize,
+   symbol: char,
+}
+#[derive(Default)]
+pub enum Interaction {
+   #[default]
+   None,
+   AddNode,
+   DelNode,
+   AddCon,
+   RemCon
+}
