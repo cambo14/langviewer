@@ -31,6 +31,8 @@ use iced::mouse::{self};
 use iced::widget::{canvas};
 use iced::{Color, Rectangle, Renderer, Theme};
 
+const NODE_SIZE: f32 = 30.0;
+
 #[allow(dead_code)]
 #[derive(Debug, Clone, Copy)]
 pub enum Message{
@@ -56,7 +58,11 @@ pub struct DfaInstance {
 impl<'a> canvas::Program<Message> for DfaWindow<'a> {
    fn draw(&self, _state: &Interaction, renderer: &Renderer, _theme: &Theme, bounds: Rectangle, _cursor: mouse::Cursor) -> Vec<canvas::Geometry> {
       let mut frame = canvas::Frame::new(renderer, bounds.size());
-
+      for node in &self.dfa.nodes {
+         let circle = canvas::Path::circle(node.pos, NODE_SIZE);
+         frame.stroke(&circle,
+            canvas::Stroke::default().with_color(Color::BLACK).with_width(2.0).with_line_join(canvas::LineJoin::Round));
+      }
       let circle = canvas::Path::circle(frame.center(), 15.0);
 
       frame.fill(&circle, Color::BLACK);
@@ -78,7 +84,7 @@ impl<'a> canvas::Program<Message> for DfaWindow<'a> {
                } else {
                   Interaction::AddNode
                };
-               Some(Message::AddNode {pos})
+               Some(Message::AddNode {pos}) //TODO use pos of pointer in canvas not window
             };
 
             Some(message.map(canvas::Action::publish)
@@ -98,6 +104,18 @@ impl <'a>DfaWindow<'a> {
       canvas::Canvas::new(self).width(iced::Fill).height(iced::Fill).into()
    }
 }
+impl DfaInstance {
+   pub fn update(&mut self, message: Message) {
+      match message {
+         Message::AddNode {pos} => {
+            log::debug!("Adding node at position {:?}", pos);
+            self.nodes.push(Node { pos, is_accepting: false, is_initial: false });
+         }
+         _ => {}
+      }
+   }
+}
+
 
 pub fn is_node(_pos: iced::Point<f32>) -> bool {
    return false;

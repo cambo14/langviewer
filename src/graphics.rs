@@ -91,7 +91,9 @@ impl GraphicsInstance{
          }
          Message::DfaMessage(dfa_msg) => {
             log::debug!("DfaMessage received: {:?}", dfa_msg);
-            // Handle DFA message...
+            if let EditorMode::Dfa { dfa } = &mut self.mode {
+               dfa.update(dfa_msg);
+            }
          }
       }
       iced::Task::none()
