@@ -7,3 +7,9 @@ edition = "2024"
 iced = {version = "0.14.0", features = ["canvas"]}
 log = "0.4.32"
 rstar = "0.13.0"
+
+[profile.release]
+lto = true          
+codegen-units = 1   
+panic = 'abort'     
+strip = true  

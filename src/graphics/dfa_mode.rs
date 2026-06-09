@@ -33,9 +33,9 @@ use iced::widget::{canvas};
 use iced::{Color, Rectangle, Renderer, Theme};
 use rstar::{Point, RTree};
 
-const NODE_SIZE: f32 = 30.0;
+const NODE_SIZE: i32 = 30;
 const NODE_TEXT_SIZE: iced::Pixels = iced::Pixels{0: 16.0};
-const NODE_TEXT_MAXWWIDTH: f32 = NODE_SIZE * 2.0/3.0;
+const NODE_TEXT_MAXWWIDTH: f32 = NODE_SIZE as f32 * 2.0/3.0;
 
 
 #[allow(dead_code)]
@@ -64,7 +64,7 @@ impl<'a> canvas::Program<Message> for DfaWindow<'a> {
    fn draw(&self, _state: &Interaction, renderer: &Renderer, _theme: &Theme, bounds: Rectangle, _cursor: mouse::Cursor) -> Vec<canvas::Geometry> {
       let mut frame = canvas::Frame::new(renderer, bounds.size());
       for node in &self.dfa.nodes {
-         let circle = canvas::Path::circle(node.pos, NODE_SIZE);
+         let circle = canvas::Path::circle(node.pos, NODE_SIZE as f32);
          let text = get_node_text(&node);
          frame.stroke(&circle,
             canvas::Stroke::default().with_color(Color::BLACK).with_width(2.0).with_line_join(canvas::LineJoin::Round));
@@ -82,9 +82,9 @@ impl<'a> canvas::Program<Message> for DfaWindow<'a> {
       let (exists, pos) = (cursor.position().is_some(),
          cursor.position().unwrap_or(iced::Point::default()));
       let act_pos = iced::Point::new(pos.x - bounds.x, pos.y - bounds.y);
-      let node: Option<&Node> = self.dfa.nodes.locate_within_distance(
+      let node: Option<&Node> = self.dfa.nodes.locate_within_distance( //TODO: have different radius for node selection and connection creation
          Node { pos: act_pos, index: None, is_accepting: false, is_initial: false },
-         NODE_SIZE * NODE_SIZE).last();
+         ((NODE_SIZE * NODE_SIZE) << 2) as f32).last();
 
       match event {
          canvas::Event::Mouse(mouse::Event::ButtonPressed(mouse::Button::Left)) => {
@@ -154,11 +154,6 @@ impl DfaInstance {
          _ => {}
       }
    }
-}
-
-
-pub fn is_node(_pos: iced::Point<f32>) -> bool {
-   return false;
 }
 
 fn get_node_text(node: &Node) -> canvas::Text{
