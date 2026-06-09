@@ -33,9 +33,9 @@ use iced::widget::{canvas};
 use iced::{Color, Rectangle, Renderer, Theme};
 use rstar::{Point, RTree};
 
-const NODE_SIZE: i32 = 30;
+const NODE_SIZE: i32 = 2 << 4;
 const NODE_TEXT_SIZE: iced::Pixels = iced::Pixels{0: 16.0};
-const NODE_TEXT_MAXWWIDTH: f32 = NODE_SIZE as f32 * 2.0/3.0;
+const NODE_TEXT_MAXWWIDTH: i32 = NODE_SIZE;
 
 
 #[allow(dead_code)]
@@ -166,7 +166,7 @@ fn get_node_text(node: &Node) -> canvas::Text{
       align_x: iced::widget::text::Alignment::Center,
       align_y: iced::alignment::Vertical::Center,
       line_height: LineHeight::Relative(1.0),
-      max_width: NODE_TEXT_MAXWWIDTH,
+      max_width: NODE_TEXT_MAXWWIDTH as f32,
       shaping: iced::widget::text::Shaping::Auto,
    }
 }
