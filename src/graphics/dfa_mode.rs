@@ -17,11 +17,12 @@
 #![feature(default_field_values)]
 use iced::mouse::{self};
 use iced::wgpu::naga::FastHashMap;
+use iced::widget::canvas::path::Builder;
 use iced::widget::text::LineHeight;
 use iced::widget::{canvas};
 use iced::{Color, Rectangle, Renderer, Theme};
 use rstar::{Point, RTree};
-use super::connection::Connection;
+use super::connection::{Connection, compute_control_point};
 
 pub const NODE_SIZE: i32 = 2 << 4;
 pub const NODE_TEXT_SIZE: iced::Pixels = iced::Pixels{0: 16.0};
@@ -59,6 +60,15 @@ impl canvas::Program<Message> for DfaWindow {
          frame.stroke(&circle,
             canvas::Stroke::default().with_color(Color::BLACK).with_width(2.0).with_line_join(canvas::LineJoin::Round));
          frame.fill_text(text);
+      }
+      for conn in &self.dfa.edges {
+         let control_point = compute_control_point(0, &[0], &self.dfa.nodes, &self.dfa.edges);
+         let mut build: Builder = Builder::new();
+         build.move_to(conn.start);
+         build.quadratic_curve_to(control_point, conn.end);
+         let path = build.build();
+         frame.stroke(&path,
+            canvas::Stroke::default().with_color(Color::BLACK).with_width(2.0).with_line_join(canvas::LineJoin::Round));
       }
       //TODO for conns
 

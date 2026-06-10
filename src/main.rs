@@ -17,5 +17,6 @@
 mod graphics;
 
 fn main() -> iced::Result{
-   graphics::initialise()
+    env_logger::init();
+    graphics::initialise()
 }
