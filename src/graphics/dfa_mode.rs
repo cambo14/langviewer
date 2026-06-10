@@ -14,8 +14,7 @@
     You should have received a copy of the GNU Affero General Public License
     along with this program.  If not, see <https://www.gnu.org/licenses/>. */
 
-#![feature(default_field_values)]
-use std::ops::Add;
+
 
 use iced::mouse::{self};
 use iced::wgpu::naga::FastHashMap;
@@ -23,6 +22,7 @@ use iced::widget::canvas::path::Builder;
 use iced::widget::text::LineHeight;
 use iced::widget::{canvas};
 use iced::{Color, Rectangle, Renderer, Theme};
+use log::debug;
 use rstar::{Point, RTree};
 use super::connection::{Connection, compute_control_point};
 
@@ -64,15 +64,23 @@ impl canvas::Program<Message> for DfaWindow {
          frame.fill_text(text);
       }
       for conn in &self.dfa.edges {
-         let control_point = compute_control_point(0, &[0], &self.dfa.nodes, &self.dfa.edges);
+         let mut parallel = Vec::new();
+         for idx in 0..self.dfa.edges.len() {
+            if self.dfa.edges[idx].start.1 == conn.start.1 && self.dfa.edges[idx].end.1 == conn.end.1 {
+               parallel.push(idx);
+            }
+         }
+         let control_point = compute_control_point(
+            *self.dfa.edge_index.get(&(conn.start.1, conn.end.1, conn.symbol)).unwrap(), &parallel, &self.dfa.nodes, &self.dfa.edges);
          let mut build: Builder = Builder::new();
-         build.move_to(conn.start);
-         build.quadratic_curve_to(control_point, conn.end);
+         build.move_to(conn.start.0);
+         build.quadratic_curve_to(control_point, conn.end.0);
          let path = build.build();
+         debug!("Drawing connection from {:?} to {:?}\n with control point {:?}",
+            conn.start.0, conn.end.0, control_point);
          frame.stroke(&path,
             canvas::Stroke::default().with_color(Color::BLACK).with_width(2.0).with_line_join(canvas::LineJoin::Round));
       }
-      //TODO for conns
 
       vec![frame.into_geometry()]
    }
@@ -161,7 +169,8 @@ impl DfaInstance {
                   start, start_act.is_none(), end, end_act.is_none());
                return;
             }
-            self.edges.push(Connection {start: start_act.unwrap().pos, end: end_act.unwrap().pos, symbol});
+            self.edges.push(Connection {start: (start_act.unwrap().pos, start_act.unwrap().index.unwrap()),
+               end: (end_act.unwrap().pos, end_act.unwrap().index.unwrap()), symbol});
             self.edge_index.insert((start_act.unwrap().index.unwrap(), end_act.unwrap().index.unwrap(), symbol), self.edges.len() - 1);
          }
          _ => {}
