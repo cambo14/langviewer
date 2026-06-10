@@ -15,6 +15,8 @@
     along with this program.  If not, see <https://www.gnu.org/licenses/>. */
 
 #![feature(default_field_values)]
+use std::ops::Add;
+
 use iced::mouse::{self};
 use iced::wgpu::naga::FastHashMap;
 use iced::widget::canvas::path::Builder;
@@ -82,7 +84,7 @@ impl canvas::Program<Message> for DfaWindow {
 
       let (exists, pos) = (cursor.position().is_some(),
          cursor.position().unwrap_or(iced::Point::default()));
-      let act_pos = iced::Point::new(pos.x - bounds.x, pos.y - bounds.y);
+      let act_pos = iced::Point::new(pos.x, pos.y);
       let node: Option<&Node> = self.dfa.nodes.locate_within_distance( //TODO: have different radius for node selection and connection creation
          Node { pos: act_pos, index: None, is_accepting: false, is_initial: false },
          ((NODE_SIZE * NODE_SIZE) << 2) as f32).last();
@@ -150,9 +152,9 @@ impl DfaInstance {
 
          Message::AddCon {start, end, symbol} => {
             log::debug!("Adding connection from {:?} to {:?} with symbol '{}'", start, end, symbol);
-            let start_act = self.nodes.locate_at_point_int(
+            let start_act = self.nodes.nearest_neighbor(
                Node { pos: start, index: None, is_accepting: false, is_initial: false });
-            let end_act = self.nodes.locate_at_point_int(
+            let end_act = self.nodes.nearest_neighbor(
                Node { pos: end, index: None, is_accepting: false, is_initial: false });
             if start_act.is_none() || end_act.is_none() {
                log::error!("Failed to find nodes for connection: start node at {:?} {}, end node at {:?} {}",
