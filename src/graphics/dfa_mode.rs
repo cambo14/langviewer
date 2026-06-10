@@ -14,39 +14,43 @@
     You should have received a copy of the GNU Affero General Public License
     along with this program.  If not, see <https://www.gnu.org/licenses/>. */
 
+#![feature(default_field_values)]
 use iced::mouse::{self};
+use iced::wgpu::naga::FastHashMap;
 use iced::widget::text::LineHeight;
 use iced::widget::{canvas};
 use iced::{Color, Rectangle, Renderer, Theme};
 use rstar::{Point, RTree};
+use super::connection::Connection;
 
-const NODE_SIZE: i32 = 2 << 4;
-const NODE_TEXT_SIZE: iced::Pixels = iced::Pixels{0: 16.0};
-const NODE_TEXT_MAXWWIDTH: i32 = NODE_SIZE;
+pub const NODE_SIZE: i32 = 2 << 4;
+pub const NODE_TEXT_SIZE: iced::Pixels = iced::Pixels{0: 16.0};
+pub const NODE_TEXT_MAXWWIDTH: i32 = NODE_SIZE;
 
 
 #[allow(dead_code)]
 #[derive(Debug, Clone, Copy)]
 pub enum Message{
-    AddNode {pos: iced::Point<f32>},
-    DelNode,
-    AddCon {start: Node, end: Node, symbol: char},
-    RemCon
+   AddNode {pos: iced::Point<f32>},
+   DelNode,
+   AddCon {start: iced::Point<f32>, end: iced::Point<f32>, symbol: char},
+   RemCon
 }
 
 #[derive(Debug)]
-pub struct DfaWindow<'a> {
-   pub dfa: &'a DfaInstance,
+pub struct DfaWindow{
+   pub dfa: DfaInstance,
 }
 
 #[allow(dead_code)]
 #[derive(Debug)]
 pub struct DfaInstance {
    pub nodes: RTree<Node>,
-   pub edges: Vec<Edge>,
+   pub edges: Vec<Connection>,
+   pub edge_index: FastHashMap<(usize, usize, char), usize>,
 }
 
-impl<'a> canvas::Program<Message> for DfaWindow<'a> {
+impl canvas::Program<Message> for DfaWindow {
    fn draw(&self, _state: &Interaction, renderer: &Renderer, _theme: &Theme, bounds: Rectangle, _cursor: mouse::Cursor) -> Vec<canvas::Geometry> {
       let mut frame = canvas::Frame::new(renderer, bounds.size());
       for node in &self.dfa.nodes {
@@ -56,6 +60,7 @@ impl<'a> canvas::Program<Message> for DfaWindow<'a> {
             canvas::Stroke::default().with_color(Color::BLACK).with_width(2.0).with_line_join(canvas::LineJoin::Round));
          frame.fill_text(text);
       }
+      //TODO for conns
 
       vec![frame.into_geometry()]
    }
@@ -98,7 +103,7 @@ impl<'a> canvas::Program<Message> for DfaWindow<'a> {
                   log::debug!("Adding connection from {:?} to {:?}", start_node, end_node);
                   let message = {
                      *interaction = Interaction::None;
-                     Some(Message::AddCon { start: *start_node, end: *end_node, symbol: '\0' })
+                     Some(Message::AddCon { start: start_node.pos, end: end_node.pos, symbol: '\0' })
                   };
                   Some(message.map(canvas::Action::publish)
                      .unwrap_or(canvas::Action::request_redraw()).and_capture(),)
@@ -120,8 +125,8 @@ impl<'a> canvas::Program<Message> for DfaWindow<'a> {
 
 }
 
-impl <'a>DfaWindow<'a> {
-   pub fn view(self) -> iced::Element<'a, Message> {
+impl DfaWindow {
+   pub fn view(&self) -> iced::Element<'_, Message> {
       canvas::Canvas::new(self).width(iced::Fill).height(iced::Fill).into()
    }
 }
@@ -135,7 +140,17 @@ impl DfaInstance {
 
          Message::AddCon {start, end, symbol} => {
             log::debug!("Adding connection from {:?} to {:?} with symbol '{}'", start, end, symbol);
-            self.edges.push(Edge { start: start.index, end: end.index.unwrap_or(0), symbol });
+            let start_act = self.nodes.locate_at_point_int(
+               Node { pos: start, index: None, is_accepting: false, is_initial: false });
+            let end_act = self.nodes.locate_at_point_int(
+               Node { pos: end, index: None, is_accepting: false, is_initial: false });
+            if start_act.is_none() || end_act.is_none() {
+               log::error!("Failed to find nodes for connection: start node at {:?} {}, end node at {:?} {}",
+                  start, start_act.is_none(), end, end_act.is_none());
+               return;
+            }
+            self.edges.push(Connection {start: start_act.unwrap().pos, end: end_act.unwrap().pos, symbol});
+            self.edge_index.insert((start_act.unwrap().index.unwrap(), end_act.unwrap().index.unwrap(), symbol), self.edges.len() - 1);
          }
          _ => {}
       }
@@ -158,12 +173,12 @@ fn get_node_text(node: &Node) -> canvas::Text{
 }
 
 #[allow(dead_code)]
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, Default)]
 pub struct Node {
-   pos: iced::Point<f32>,
-   index: Option<usize>,
-   is_accepting: bool,
-   is_initial: bool,
+   pub pos: iced::Point<f32>,
+   pub index: Option<usize> = None,
+   pub is_accepting: bool = false,
+   pub is_initial: bool = false,
 }
 
 

@@ -19,7 +19,9 @@
 use std::path::PathBuf;
 
 mod dfa_mode;
+mod connection;
 use iced::Element;
+use iced::wgpu::naga::FastHashMap;
 use iced::widget::{
    button, center_x, column, container, operation, row, tooltip};
 use rstar::RTree;
@@ -34,7 +36,7 @@ enum Message {
 
 #[allow(dead_code)]
 enum EditorMode {
-   Dfa {dfa: dfa_mode::DfaInstance},
+   Dfa {dfa_win: dfa_mode::DfaWindow},
    Nfa,
    Regex,
    Cfg,
@@ -64,23 +66,24 @@ impl GraphicsInstance{
    fn view(& self) -> Element<'_, Message>{
       let toolbar = row![
          toolbar_button("DFA Creation", "DFA Creation mode", Some(Message::DfaMode)),];
-      let content: Element<'_, Message> = match &self.mode {
-         EditorMode::Dfa { dfa  } => dfa_mode::DfaWindow{dfa: dfa}.view().map(Message::DfaMessage),
+      let content: Element<Message> = match &self.mode {
+         EditorMode::Dfa { dfa_win} => dfa_win.view().map(Message::DfaMessage),
          _ => iced::widget::text("").into(),
       };
       column![toolbar, content].into()
    }
 
-   fn update(&mut self, message: Message) -> iced::Task<Message>{
+   fn update(& mut self, message: Message) -> iced::Task<Message>{
       match message{
          Message::DfaMode => {
             log::debug!("DFA Creation mode entered");
-            self.mode = EditorMode::Dfa { dfa: dfa_mode::DfaInstance { nodes: RTree::new(), edges: Vec::new() } };
+            self.mode = EditorMode::Dfa { dfa_win: dfa_mode::DfaWindow { dfa: dfa_mode::DfaInstance { 
+               nodes: RTree::new(), edges: Vec::new(), edge_index: FastHashMap::default() } } };
          }
          Message::DfaMessage(dfa_msg) => {
             log::debug!("DfaMessage received: {:?}", dfa_msg);
-            if let EditorMode::Dfa { dfa } = &mut self.mode {
-               dfa.update(dfa_msg);
+            if let EditorMode::Dfa {dfa_win} = & mut self.mode {
+               dfa_win.dfa.update(dfa_msg);
             }
          }
       }
