@@ -24,7 +24,7 @@ use iced::widget::{canvas};
 use iced::{Color, Rectangle, Renderer, Theme};
 use log::debug;
 use rstar::{Point, RTree};
-use super::connection::{Connection, compute_control_point};
+use super::connection::{Connection, compute_arrow};
 
 pub const NODE_SIZE: i32 = 2 << 4;
 pub const NODE_TEXT_SIZE: iced::Pixels = iced::Pixels{0: 16.0};
@@ -74,18 +74,8 @@ impl canvas::Program<Message> for DfaWindow {
                parallel.push(idx);
             }
          }
-         let control_point = compute_control_point(
+         let path = compute_arrow(
             *self.dfa.edge_index.get(&(conn.start.1, conn.end.1, conn.symbol)).unwrap(), &parallel, &self.dfa.nodes, &self.dfa.edges);
-         let mut build: Builder = Builder::new();
-         let dist = ((conn.end.0.x - conn.start.0.x).powi(2) + (conn.end.0.y - conn.start.0.y).powi(2)).sqrt();
-         let off = iced::Vector::new(((conn.end.0.x - conn.start.0.x) / dist) * NODE_SIZE as f32,
-            ((conn.end.0.y - conn.start.0.y) / dist )* NODE_SIZE as f32);
-         build.move_to(conn.start.0 + off);
-         build.quadratic_curve_to(control_point, conn.end.0 - off);
-
-         let path = build.build();
-         debug!("Drawing connection from {:?} to {:?}\n with control point {:?}",
-            conn.start.0, conn.end.0, control_point);
          frame.stroke(&path,
             canvas::Stroke::default().with_color(Color::BLACK).with_width(2.0).with_line_join(canvas::LineJoin::Round));
       }

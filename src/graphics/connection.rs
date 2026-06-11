@@ -24,6 +24,7 @@ use super::dfa_mode::Node;
 
 const PARALLEL_OFFSET: f32 = 20.0;
 const NUDGE_THRESHOLD: f32 = NODE_SIZE as f32 * 2.0;
+const ARROW_ANGLE: f32 = std::f32::consts::PI / 6.0;
 
 #[derive(Debug, Clone, Copy)]
 pub struct Connection {
@@ -32,8 +33,9 @@ pub struct Connection {
     pub symbol: char,
 }
 
-pub fn compute_control_point(conn_idx: usize,
-    parallel: &[usize], nodes: &RTree<Node>, conns: &[Connection]) -> iced::Point<f32> 
+/// Creates a Path for the arrow representing the connection at `conn_idx`
+pub fn compute_arrow(conn_idx: usize,
+    parallel: &[usize], nodes: &RTree<Node>, conns: &[Connection]) -> canvas::Path
 {
     let conn = conns[conn_idx];
     let midpoint: iced::Point<f32> = iced::Point::new((conn.start.0.x + conn.end.0.x) / 2.0,
@@ -62,16 +64,23 @@ pub fn compute_control_point(conn_idx: usize,
             cp -= norm * (NUDGE_THRESHOLD - dist) * 0.5;
         }
     }
-    debug!("Control point for connection {:?} is {:?} (midpoint: {:?}, perp: {:?}, offset: {:?})", conn, cp, midpoint, perp, offset);
-    cp
-}
-
-
-pub fn build_connection_path(conn: Connection, control_point: iced::Point<f32>) -> canvas::Path {
-    
-    //let arrow: iced::Vector<f32> = 0;
     let mut build: Builder = Builder::new();
-    build.move_to(conn.start.0);
-    build.quadratic_curve_to(control_point, conn.end.0);
+
+    let dist = ((conn.end.0.x - conn.start.0.x).powi(2) + (conn.end.0.y - conn.start.0.y).powi(2)).sqrt();
+    let off = iced::Vector::new(((conn.end.0.x - conn.start.0.x) / dist) * NODE_SIZE as f32,
+        ((conn.end.0.y - conn.start.0.y) / dist )* NODE_SIZE as f32);
+    let fin = conn.end.0 - off;
+        
+    build.move_to(conn.start.0 + off);
+    build.quadratic_curve_to(cp, fin);
+
+    let left = iced::Vector::new(-off.x*f32::cos(ARROW_ANGLE)+off.y*f32::sin(ARROW_ANGLE),
+        -off.x*f32::sin(ARROW_ANGLE)-off.y*f32::cos(ARROW_ANGLE));
+    let right = iced::Vector::new(-off.x*f32::cos(-ARROW_ANGLE)+off.y*f32::sin(-ARROW_ANGLE),
+        -off.x*f32::sin(-ARROW_ANGLE)-off.y*f32::cos(-ARROW_ANGLE));
+    build.move_to(fin);
+    build.line_to(fin + left);
+    build.move_to(fin);
+    build.line_to(fin + right);
     build.build()
 }
