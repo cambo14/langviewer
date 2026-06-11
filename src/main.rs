@@ -14,8 +14,6 @@
     You should have received a copy of the GNU Affero General Public License
     along with this program.  If not, see <https://www.gnu.org/licenses/>. */
 #![feature(default_field_values)]
-#![feature(more_float_constants)]
-#![warn(missing_docs)]
 
 mod graphics;
 

@@ -81,7 +81,6 @@ impl GraphicsInstance{
                nodes: RTree::new(), edges: Vec::new(), edge_index: FastHashMap::default() } } };
          }
          Message::DfaMessage(dfa_msg) => {
-            log::debug!("DfaMessage received: {:?}", dfa_msg);
             if let EditorMode::Dfa {dfa_win} = & mut self.mode {
                dfa_win.dfa.update(dfa_msg);
             }

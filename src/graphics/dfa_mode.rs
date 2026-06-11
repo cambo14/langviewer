@@ -18,26 +18,28 @@
 
 use iced::mouse::{self};
 use iced::wgpu::naga::FastHashMap;
-use iced::widget::canvas::path::Builder;
 use iced::widget::text::LineHeight;
 use iced::widget::{canvas};
 use iced::{Color, Rectangle, Renderer, Theme};
-use log::debug;
 use rstar::{Point, RTree};
 use super::connection::{Connection, compute_arrow};
 
+/// The radius of a DFA node when drawn on the canvas.
 pub const NODE_SIZE: i32 = 2 << 4;
+/// The size of the text label for a DFA node.
 pub const NODE_TEXT_SIZE: iced::Pixels = iced::Pixels{0: 16.0};
-pub const NODE_TEXT_MAXWWIDTH: i32 = NODE_SIZE;
+/// The maximum width of the text label for a DFA node.
+pub const NODE_TEXT_MAXWIDTH: i32 = NODE_SIZE;
 
 
-#[allow(dead_code)]
+/// The main message enum for handling interactions in the DFA editor mode.
 #[derive(Debug, Clone, Copy)]
 pub enum Message{
+   /// Add a node at the given point
    AddNode {pos: iced::Point<f32>},
-   DelNode,
+
+   /// Add a connection between two nodes with for the transition associated with given symbol
    AddCon {start: iced::Point<f32>, end: iced::Point<f32>, symbol: char},
-   RemCon
 }
 
 #[derive(Debug)]
@@ -55,8 +57,6 @@ pub struct DfaInstance {
 
 impl canvas::Program<Message> for DfaWindow {
    fn draw(&self, _state: &Interaction, renderer: &Renderer, _theme: &Theme, bounds: Rectangle, _cursor: mouse::Cursor) -> Vec<canvas::Geometry> {
-      debug!("\x1B[2J\x1B[1;1H");
-      debug!("draw");
       let mut frame = canvas::Frame::new(renderer, bounds.size());
       for node in &self.dfa.nodes {
          let circle = canvas::Path::circle(node.pos, NODE_SIZE as f32);
@@ -69,7 +69,6 @@ impl canvas::Program<Message> for DfaWindow {
       for conn in &self.dfa.edges {
          parallel.clear();
          for idx in 0..self.dfa.edges.len() {
-            debug!("Checking connection {:?} against edge {:?} for parallelism", conn, self.dfa.edges[idx]);
             if self.dfa.edges[idx].start.1 == conn.start.1 && self.dfa.edges[idx].end.1 == conn.end.1 {
                parallel.push(idx);
             }
@@ -118,7 +117,6 @@ impl canvas::Program<Message> for DfaWindow {
                      Node { pos: init_node.pos, index: None, is_accepting: false, is_initial: false },
                      0.1).last().unwrap_or(end_node);
                      
-                  log::debug!("Adding connection from {:?} to {:?}", start_node, end_node);
                   let message = {
                      *interaction = Interaction::None;
                      Some(Message::AddCon { start: start_node.pos, end: end_node.pos, symbol: self.dfa.edges.len().to_string().chars().next().unwrap_or('?') }) //TODO: have a better way to determine symbol
@@ -152,7 +150,6 @@ impl DfaInstance {
    pub fn update(&mut self, message: Message) {
       match message {
          Message::AddNode {pos} => {
-            log::debug!("Adding node at position {:?}", pos);
             self.nodes.insert(Node { pos: iced::Point::new(pos.x, pos.y), index: Some(self.nodes.size()), is_accepting: false, is_initial: false });
          }
 
@@ -161,7 +158,6 @@ impl DfaInstance {
                Node { pos: start, index: None, is_accepting: false, is_initial: false });
             let end_act = self.nodes.nearest_neighbor(
                Node { pos: end, index: None, is_accepting: false, is_initial: false });
-            log::debug!("Adding found connection from {:?} to {:?} with symbol '{}'", start_act, end_act, symbol);
             if start_act.is_none() || end_act.is_none() {
                log::error!("Failed to find nodes for connection: start node at {:?} {}, end node at {:?} {}",
                   start, start_act.is_none(), end, end_act.is_none());
@@ -171,7 +167,6 @@ impl DfaInstance {
                end: (end_act.unwrap().pos, end_act.unwrap().index.unwrap()), symbol});
             self.edge_index.insert((start_act.unwrap().index.unwrap(), end_act.unwrap().index.unwrap(), symbol), self.edges.len() - 1);
          }
-         _ => {}
       }
    }
 }
@@ -186,7 +181,7 @@ fn get_node_text(node: &Node) -> canvas::Text{
       align_x: iced::widget::text::Alignment::Center,
       align_y: iced::alignment::Vertical::Center,
       line_height: LineHeight::Relative(1.0),
-      max_width: NODE_TEXT_MAXWWIDTH as f32,
+      max_width: NODE_TEXT_MAXWIDTH as f32,
       shaping: iced::widget::text::Shaping::Auto,
    }
 }

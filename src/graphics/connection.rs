@@ -15,7 +15,6 @@
     along with this program.  If not, see <https://www.gnu.org/licenses/>. */
 
 use iced::{Vector, widget::canvas::{self, path::Builder}};
-use log::debug;
 use rstar::{AABB, RTree};
 
 use crate::graphics::dfa_mode::NODE_SIZE;
@@ -26,11 +25,31 @@ const PARALLEL_OFFSET: f32 = 20.0;
 const NUDGE_THRESHOLD: f32 = NODE_SIZE as f32 * 2.0;
 const ARROW_ANGLE: f32 = std::f32::consts::PI / 6.0;
 
+/// Computes the vector for the left side of the arrowhead based on the offset vector.
+macro_rules! left {
+    ($off:expr) => {
+        iced::Vector::new(-$off.x*f32::cos(ARROW_ANGLE)+$off.y*f32::sin(ARROW_ANGLE),
+        -$off.x*f32::sin(ARROW_ANGLE)-$off.y*f32::cos(ARROW_ANGLE))
+    };
+}
+
+/// Computes the vector for the right side of the arrowhead based on the offset vector.
+macro_rules! right {
+    ($off:expr) => {
+        iced::Vector::new(-$off.x*f32::cos(-ARROW_ANGLE)+$off.y*f32::sin(-ARROW_ANGLE),
+        -$off.x*f32::sin(-ARROW_ANGLE)-$off.y*f32::cos(-ARROW_ANGLE))
+    };
+}
+
+/// Represents a connection between two nodes in the DFA with a symbol for transition.
 #[derive(Debug, Clone, Copy)]
 pub struct Connection {
+    /// The starting point and index of the node
     pub start: (iced::Point<f32>, usize),
-    pub end: (iced::Point<f32>, usize),
-    pub symbol: char,
+    /// The ending point and index of the node
+    pub end: (iced::Point<f32>, usize), 
+    /// The symbol associated with the transition
+    pub symbol: char, 
 }
 
 /// Creates a Path for the arrow representing the connection at `conn_idx`
@@ -46,7 +65,6 @@ pub fn compute_arrow(conn_idx: usize,
 
     let edge_rank = parallel.iter().position(|&idx| idx == conn_idx).unwrap() as f32
         - (parallel.len() as f32 - 1.0) / 2.0;
-    debug!("With edge rank {:?} and parallel count {:?} for conn {:?}", edge_rank, parallel.len(), conn);
     let n = parallel.len() as f32;
     let offset = (edge_rank as f32 - (n - 1.0) / 2.0) * PARALLEL_OFFSET;
 
@@ -74,13 +92,9 @@ pub fn compute_arrow(conn_idx: usize,
     build.move_to(conn.start.0 + off);
     build.quadratic_curve_to(cp, fin);
 
-    let left = iced::Vector::new(-off.x*f32::cos(ARROW_ANGLE)+off.y*f32::sin(ARROW_ANGLE),
-        -off.x*f32::sin(ARROW_ANGLE)-off.y*f32::cos(ARROW_ANGLE));
-    let right = iced::Vector::new(-off.x*f32::cos(-ARROW_ANGLE)+off.y*f32::sin(-ARROW_ANGLE),
-        -off.x*f32::sin(-ARROW_ANGLE)-off.y*f32::cos(-ARROW_ANGLE));
     build.move_to(fin);
-    build.line_to(fin + left);
+    build.line_to(fin + left!(off));
     build.move_to(fin);
-    build.line_to(fin + right);
+    build.line_to(fin + right!(off));
     build.build()
 }
