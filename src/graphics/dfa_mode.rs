@@ -77,8 +77,12 @@ impl canvas::Program<Message> for DfaWindow {
          let control_point = compute_control_point(
             *self.dfa.edge_index.get(&(conn.start.1, conn.end.1, conn.symbol)).unwrap(), &parallel, &self.dfa.nodes, &self.dfa.edges);
          let mut build: Builder = Builder::new();
-         build.move_to(conn.start.0);
-         build.quadratic_curve_to(control_point, conn.end.0);
+         let dist = ((conn.end.0.x - conn.start.0.x).powi(2) + (conn.end.0.y - conn.start.0.y).powi(2)).sqrt();
+         let off = iced::Vector::new(((conn.end.0.x - conn.start.0.x) / dist) * NODE_SIZE as f32,
+            ((conn.end.0.y - conn.start.0.y) / dist )* NODE_SIZE as f32);
+         build.move_to(conn.start.0 + off);
+         build.quadratic_curve_to(control_point, conn.end.0 - off);
+
          let path = build.build();
          debug!("Drawing connection from {:?} to {:?}\n with control point {:?}",
             conn.start.0, conn.end.0, control_point);

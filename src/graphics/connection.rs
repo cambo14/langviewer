@@ -14,7 +14,7 @@
     You should have received a copy of the GNU Affero General Public License
     along with this program.  If not, see <https://www.gnu.org/licenses/>. */
 
-use iced::Vector;
+use iced::{Vector, widget::canvas::{self, path::Builder}};
 use log::debug;
 use rstar::{AABB, RTree};
 
@@ -64,4 +64,14 @@ pub fn compute_control_point(conn_idx: usize,
     }
     debug!("Control point for connection {:?} is {:?} (midpoint: {:?}, perp: {:?}, offset: {:?})", conn, cp, midpoint, perp, offset);
     cp
+}
+
+
+pub fn build_connection_path(conn: Connection, control_point: iced::Point<f32>) -> canvas::Path {
+    
+    //let arrow: iced::Vector<f32> = 0;
+    let mut build: Builder = Builder::new();
+    build.move_to(conn.start.0);
+    build.quadratic_curve_to(control_point, conn.end.0);
+    build.build()
 }
