@@ -44,6 +44,7 @@ pub fn compute_control_point(conn_idx: usize,
 
     let edge_rank = parallel.iter().position(|&idx| idx == conn_idx).unwrap() as f32
         - (parallel.len() as f32 - 1.0) / 2.0;
+    debug!("With edge rank {:?} and parallel count {:?} for conn {:?}", edge_rank, parallel.len(), conn);
     let n = parallel.len() as f32;
     let offset = (edge_rank as f32 - (n - 1.0) / 2.0) * PARALLEL_OFFSET;
 

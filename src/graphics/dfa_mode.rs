@@ -55,6 +55,8 @@ pub struct DfaInstance {
 
 impl canvas::Program<Message> for DfaWindow {
    fn draw(&self, _state: &Interaction, renderer: &Renderer, _theme: &Theme, bounds: Rectangle, _cursor: mouse::Cursor) -> Vec<canvas::Geometry> {
+      debug!("\x1B[2J\x1B[1;1H");
+      debug!("draw");
       let mut frame = canvas::Frame::new(renderer, bounds.size());
       for node in &self.dfa.nodes {
          let circle = canvas::Path::circle(node.pos, NODE_SIZE as f32);
@@ -63,9 +65,11 @@ impl canvas::Program<Message> for DfaWindow {
             canvas::Stroke::default().with_color(Color::BLACK).with_width(2.0).with_line_join(canvas::LineJoin::Round));
          frame.fill_text(text);
       }
+      let mut parallel = Vec::with_capacity(self.dfa.edges.len());
       for conn in &self.dfa.edges {
-         let mut parallel = Vec::new();
+         parallel.clear();
          for idx in 0..self.dfa.edges.len() {
+            debug!("Checking connection {:?} against edge {:?} for parallelism", conn, self.dfa.edges[idx]);
             if self.dfa.edges[idx].start.1 == conn.start.1 && self.dfa.edges[idx].end.1 == conn.end.1 {
                parallel.push(idx);
             }
@@ -123,7 +127,7 @@ impl canvas::Program<Message> for DfaWindow {
                   log::debug!("Adding connection from {:?} to {:?}", start_node, end_node);
                   let message = {
                      *interaction = Interaction::None;
-                     Some(Message::AddCon { start: start_node.pos, end: end_node.pos, symbol: '\0' })
+                     Some(Message::AddCon { start: start_node.pos, end: end_node.pos, symbol: self.dfa.edges.len().to_string().chars().next().unwrap_or('?') }) //TODO: have a better way to determine symbol
                   };
                   Some(message.map(canvas::Action::publish)
                      .unwrap_or(canvas::Action::request_redraw()).and_capture(),)
@@ -159,11 +163,11 @@ impl DfaInstance {
          }
 
          Message::AddCon {start, end, symbol} => {
-            log::debug!("Adding connection from {:?} to {:?} with symbol '{}'", start, end, symbol);
             let start_act = self.nodes.nearest_neighbor(
                Node { pos: start, index: None, is_accepting: false, is_initial: false });
             let end_act = self.nodes.nearest_neighbor(
                Node { pos: end, index: None, is_accepting: false, is_initial: false });
+            log::debug!("Adding found connection from {:?} to {:?} with symbol '{}'", start_act, end_act, symbol);
             if start_act.is_none() || end_act.is_none() {
                log::error!("Failed to find nodes for connection: start node at {:?} {}, end node at {:?} {}",
                   start, start_act.is_none(), end, end_act.is_none());
