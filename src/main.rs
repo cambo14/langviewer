@@ -13,10 +13,16 @@
 
     You should have received a copy of the GNU Affero General Public License
     along with this program.  If not, see <https://www.gnu.org/licenses/>. */
+
+//! The main entry point for the application, creating a graphical instance and running it
+
+
 #![feature(default_field_values)]
 
+/// Handles the graphical implementation of the program
 mod graphics;
 
+/// Main entry point of the program. Initializes the graphics module and starts the application.
 fn main() -> iced::Result{
     env_logger::init();
     graphics::initialise()

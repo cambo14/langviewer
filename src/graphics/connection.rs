@@ -21,9 +21,12 @@ use crate::graphics::dfa_mode::NODE_SIZE;
 
 use super::dfa_mode::Node;
 
-const PARALLEL_OFFSET: f32 = 20.0;
+const PARALLEL_OFFSET: f32 = 50.0;
 const NUDGE_THRESHOLD: f32 = NODE_SIZE as f32 * 2.0;
+/// The angle of the arrowhead in radians, relative to the negative tangent vector of the end of the connection.
 const ARROW_ANGLE: f32 = std::f32::consts::PI / 6.0;
+/// The scale factor for the size of the arrowhead relative to the node size.
+const ARROW_SCALE: f32 = 0.3;
 
 /// Computes the vector for the left side of the arrowhead based on the offset vector.
 macro_rules! left {
@@ -63,16 +66,19 @@ pub fn compute_arrow(conn_idx: usize,
     let norm = (edge_vec.x.powi(2) + edge_vec.y.powi(2)).sqrt();
     let perp = iced::Vector::new(-edge_vec.y / norm, edge_vec.x / norm);
 
-    let edge_rank = parallel.iter().position(|&idx| idx == conn_idx).unwrap() as f32
-        - (parallel.len() as f32 - 1.0) / 2.0;
-    let n = parallel.len() as f32;
-    let offset = (edge_rank as f32 - (n - 1.0) / 2.0) * PARALLEL_OFFSET;
+    let ind = parallel.iter().position(|&idx| idx == conn_idx).unwrap();
+    let n = parallel.len();
+
+    // Symmetric rank: for n=4 -> -1.5,-0.5,0.5,1.5 ; for n=3 -> -1,0,1
+    let edge_rank = ind as f32 - (n as f32 - 1.0) / 2.0;
+    let offset = edge_rank * PARALLEL_OFFSET;
 
     let mut cp = midpoint + perp * offset;
 
-    let bbox = AABB::from_corners(
-        Node { pos: conn.start.0, .. },
-        Node { pos: conn.end.0, ..});
+    let bbox = AABB::from_center(
+        Node { pos: midpoint, .. },
+        norm + (NODE_SIZE << 2) as f32,
+);
     for nearby_node in nodes.locate_in_envelope(bbox) {
         let to_node = nearby_node.pos - cp;
         let dist = to_node.x.powi(2) + to_node.y.powi(2);
@@ -82,19 +88,29 @@ pub fn compute_arrow(conn_idx: usize,
             cp -= norm * (NUDGE_THRESHOLD - dist) * 0.5;
         }
     }
-    let mut build: Builder = Builder::new();
+    let start_centre = conn.start.0;
+    let end_centre = conn.end.0;
+    let start_tangent = cp - start_centre;
+    let st_len = (start_tangent.x.powi(2) + start_tangent.y.powi(2)).sqrt();
+    let start_dir = Vector::new(start_tangent.x / st_len, start_tangent.y / st_len);
 
-    let dist = ((conn.end.0.x - conn.start.0.x).powi(2) + (conn.end.0.y - conn.start.0.y).powi(2)).sqrt();
-    let off = iced::Vector::new(((conn.end.0.x - conn.start.0.x) / dist) * NODE_SIZE as f32,
-        ((conn.end.0.y - conn.start.0.y) / dist )* NODE_SIZE as f32);
-    let fin = conn.end.0 - off;
+    let end_tangent = end_centre - cp;
+    let et_len = (end_tangent.x.powi(2) + end_tangent.y.powi(2)).sqrt();
+    let end_dir = Vector::new(end_tangent.x / et_len, end_tangent.y / et_len);
+
+    // Where the curve leaves the start circle and enters the end circle
+    let curve_start = start_centre + start_dir * NODE_SIZE as f32;
+    let curve_end   = end_centre   - end_dir   * NODE_SIZE as f32;
+
+    let arrow_off = end_dir * (NODE_SIZE as f32 * ARROW_SCALE); // scale as you like
         
-    build.move_to(conn.start.0 + off);
-    build.quadratic_curve_to(cp, fin);
+    let mut build = Builder::new();
+    build.move_to(curve_start);
+    build.quadratic_curve_to(cp, curve_end);
 
-    build.move_to(fin);
-    build.line_to(fin + left!(off));
-    build.move_to(fin);
-    build.line_to(fin + right!(off));
+    build.move_to(curve_end);
+    build.line_to(curve_end + left!(arrow_off));
+    build.move_to(curve_end);
+    build.line_to(curve_end + right!(arrow_off));
     build.build()
 }

@@ -1,24 +1,25 @@
 /*  LangViewer - A tool for visualising languages, grammars, and automata.
-    Copyright (C) 2026 Campbell Rowland>
+Copyright (C) 2026 Campbell Rowland>
 
-    This program is free software: you can redistribute it and/or modify
-    it under the terms of the GNU Affero General Public License as
-    published by the Free Software Foundation, either version 3 of the
-    License, or (at your option) any later version.
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License as
+published by the Free Software Foundation, either version 3 of the
+License, or (at your option) any later version.
 
-    This program is distributed in the hope that it will be useful,
-    but WITHOUT ANY WARRANTY; without even the implied warranty of
-    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-    GNU Affero General Public License for more details.
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU Affero General Public License for more details.
 
-    You should have received a copy of the GNU Affero General Public License
-    along with this program.  If not, see <https://www.gnu.org/licenses/>. */
-
+You should have received a copy of the GNU Affero General Public License
+along with this program.  If not, see <https://www.gnu.org/licenses/>. */
 
 
 use std::path::PathBuf;
 
+/// This module is designed to handle the graphical implementation of dfa's
 mod dfa_mode;
+
 mod connection;
 use iced::Element;
 use iced::wgpu::naga::FastHashMap;
@@ -34,7 +35,7 @@ enum Message {
    DfaMessage(dfa_mode::Message),
 }
 
-#[allow(dead_code)]
+/// What is currently being displayed for the user to edit
 enum EditorMode {
    Dfa {dfa_win: dfa_mode::DfaWindow},
    Nfa,
@@ -48,7 +49,7 @@ pub fn initialise() -> iced::Result {
       .run()
 }
 
-#[allow(dead_code)] //TODO: Remove on file save addition
+/// The graphical instance of the application
 pub struct GraphicsInstance{
    file: Option<PathBuf>,
    mode: EditorMode,
@@ -95,7 +96,7 @@ fn toolbar_button<'a, Message:Clone + 'a>(
       content: impl Into<Element<'a, Message>>,
       label: &'a str,
       on_press: Option<Message>,
-   ) -> Element<'a, Message>{
+) -> Element<'a, Message>{
       let but = button(center_x(content).width(iced::Length::Fill))
          .padding(10)
          .width(iced::Length::Shrink);
