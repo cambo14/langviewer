@@ -22,7 +22,7 @@ use crate::graphics::dfa_mode::NODE_SIZE;
 use super::dfa_mode::Node;
 
 const PARALLEL_OFFSET: f32 = 50.0;
-const NUDGE_THRESHOLD: f32 = NODE_SIZE as f32 * 2.0;
+const NUDGE_THRESHOLD: f32 = (NODE_SIZE << 3) as f32; // distance at which to nudge the curve away from a nearby node
 /// The angle of the arrowhead in radians, relative to the negative tangent vector of the end of the connection.
 const ARROW_ANGLE: f32 = std::f32::consts::PI / 6.0;
 /// The scale factor for the size of the arrowhead relative to the node size.
@@ -80,8 +80,9 @@ pub fn compute_arrow(conn_idx: usize,
         norm + (NODE_SIZE << 2) as f32,
 );
     for nearby_node in nodes.locate_in_envelope(bbox) {
+        log::debug!("Nearby node at {:?} with index {}", nearby_node.pos, nearby_node.index.unwrap());
         let to_node = nearby_node.pos - cp;
-        let dist = to_node.x.powi(2) + to_node.y.powi(2);
+        let dist = (to_node.x.powi(2) + to_node.y.powi(2)).sqrt();
         if dist < NUDGE_THRESHOLD {
             let size = (to_node.x.powi(2) + to_node.y.powi(2)).sqrt();
             let norm = Vector::new(to_node.x / size, to_node.y / size);

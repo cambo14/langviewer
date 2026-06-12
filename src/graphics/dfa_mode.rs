@@ -82,6 +82,9 @@ impl canvas::Program<Message> for DfaWindow {
       vec![frame.into_geometry()]
    }
 
+   /// Update the state of the DFA editor based on an [`Event`](enum@canvas::Event), such as mouse interactions
+   /// and returns any resulting [`Action`](enum@canvas::Action) to be performed, such as redrawing the
+   /// canvas or publishing a [`Message`].
    fn update(&self, interaction: &mut Interaction,
          event: &canvas::Event, bounds: Rectangle,
          cursor: mouse::Cursor) -> Option<canvas::Action<Message>>
@@ -90,17 +93,29 @@ impl canvas::Program<Message> for DfaWindow {
       let (exists, pos) = (cursor.position().is_some(),
          cursor.position().unwrap_or(iced::Point::default()));
       let act_pos = iced::Point::new(pos.x, pos.y);
-      let node: Option<&Node> = self.dfa.nodes.locate_within_distance( //TODO: have different radius for node selection and connection creation
-         Node { pos: act_pos, index: None, is_accepting: false, is_initial: false },
-         ((NODE_SIZE * NODE_SIZE) << 2) as f32).last();
+      let node: Option<&Node> = self.dfa.nodes.locate_within_distance(
+         Node { pos: act_pos, .. },
+         (NODE_SIZE.pow(2) << 1) as f32).next();
+
 
       match event {
          canvas::Event::Mouse(mouse::Event::ButtonPressed(mouse::Button::Left)) => {
             
-            let message = if exists && node.is_some() {
+            let message = 
+               if exists && node.is_some() {
                   *interaction = Interaction::AddCon { init: *node.unwrap() };
                   None
                } else {
+                  let nearest = self.dfa.nodes.nearest_neighbor_with_distance_2(
+                     Node {pos: act_pos, .. } );
+                  let float = if nearest.is_none() {
+                        f32::MAX
+                     } else {
+                        nearest.unwrap().1
+                     };
+                  if float < ((NODE_SIZE.pow(2) << 3) as f32){  
+                     return None;
+                  }
                   *interaction = Interaction::None;
                   Some(Message::AddNode {pos: iced::Point::new(pos.x - bounds.x, pos.y - bounds.y)})
             };
@@ -108,10 +123,11 @@ impl canvas::Program<Message> for DfaWindow {
             .unwrap_or(canvas::Action::request_redraw()).and_capture(),)
          }
 
-            
+         
          canvas::Event::Mouse(mouse::Event::ButtonReleased(mouse::Button::Left)) => {
             if let Interaction::AddCon { init: init_node } = *interaction {
                if let Some(end_node) = node {
+                  
                   // Find the original start node in the RTree to get a &'a Node reference
                   let start_node = self.dfa.nodes.locate_within_distance(
                      Node { pos: init_node.pos, index: None, is_accepting: false, is_initial: false },

@@ -44,6 +44,7 @@ enum EditorMode {
    Empty,
 }
 
+/// Initialise the graphical instance of an application and run it
 pub fn initialise() -> iced::Result {
    iced::application(GraphicsInstance::new, GraphicsInstance::update, GraphicsInstance::view)
       .run()
