@@ -24,7 +24,8 @@ use super::dfa_mode::Node;
 /// How far to offset parallel connections between the same two nodes
 const PARALLEL_OFFSET: f32 = 50.0;
 
-const NUDGE_THRESHOLD: f32 = (NODE_SIZE << 3) as f32; // distance at which to nudge the curve away from a nearby node
+/// distance at which to nudge the curve away from a nearby node
+const NUDGE_THRESHOLD: f32 = (NODE_SIZE << 3) as f32;
 /// The angle of the arrowhead in radians, relative to the negative tangent vector of the end of the connection.
 const ARROW_ANGLE: f32 = std::f32::consts::PI / 6.0;
 /// The scale factor for the size of the arrowhead relative to the node size.

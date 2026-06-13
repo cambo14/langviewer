@@ -27,7 +27,7 @@ use super::connection::{Connection, compute_arrow};
 /// The radius of a DFA node when drawn on the canvas.
 pub const NODE_SIZE: i32 = 2 << 4;
 /// The size of the text label for a DFA node.
-pub const NODE_TEXT_SIZE: iced::Pixels = iced::Pixels{0: 16.0};
+pub const NODE_TEXT_SIZE: iced::Pixels = iced::Pixels(16.0);
 /// The maximum width of the text label for a DFA node.
 pub const NODE_TEXT_MAXWIDTH: i32 = NODE_SIZE;
 
@@ -36,22 +36,38 @@ pub const NODE_TEXT_MAXWIDTH: i32 = NODE_SIZE;
 #[derive(Debug, Clone, Copy)]
 pub enum Message{
    /// Add a node at the given point
-   AddNode {pos: iced::Point<f32>},
+   AddNode {
+      /// The position to add the node at
+      pos: iced::Point<f32>
+   },
 
    /// Add a connection between two nodes with for the transition associated with given symbol
-   AddCon {start: iced::Point<f32>, end: iced::Point<f32>, symbol: char},
+   AddCon {
+      /// The starting point of the connection
+      start: iced::Point<f32>,
+      /// The ending point of the connection
+      end: iced::Point<f32>,
+      /// The symbol associated with the transition
+      symbol: char
+   },
 }
 
+/// The window in which to render the DFA editor
 #[derive(Debug)]
 pub struct DfaWindow{
+   /// The current state of the DFA being edited, including its nodes and connections
    pub dfa: DfaInstance,
 }
 
-#[allow(dead_code)]
+/// A single DFA containing nodes, edges, and an index 
+/// for quick lookup of edges based on their start and end nodes and symbol
 #[derive(Debug)]
 pub struct DfaInstance {
+   /// The nodes in the DFA, stored in an RTree for efficient spatial queries
    pub nodes: RTree<Node>,
+   /// The connections (edges) in the DFA, stored as a vector
    pub edges: Vec<Connection>,
+   /// An index for quickly finding the index of a connection in `edges` based on its start node, end node, and symbol
    pub edge_index: FastHashMap<(usize, usize, char), usize>,
 }
 
@@ -60,7 +76,7 @@ impl canvas::Program<Message> for DfaWindow {
       let mut frame = canvas::Frame::new(renderer, bounds.size());
       for node in &self.dfa.nodes {
          let circle = canvas::Path::circle(node.pos, NODE_SIZE as f32);
-         let text = get_node_text(&node);
+         let text = get_node_text(node);
          frame.stroke(&circle,
             canvas::Stroke::default().with_color(Color::BLACK).with_width(2.0).with_line_join(canvas::LineJoin::Round));
          frame.fill_text(text);
@@ -91,7 +107,7 @@ impl canvas::Program<Message> for DfaWindow {
    {
 
       let (exists, pos) = (cursor.position().is_some(),
-         cursor.position().unwrap_or(iced::Point::default()));
+         cursor.position().unwrap_or_default());
       let act_pos = iced::Point::new(pos.x, pos.y);
       let node: Option<&Node> = self.dfa.nodes.locate_within_distance(
          Node { pos: act_pos, .. },
@@ -102,16 +118,16 @@ impl canvas::Program<Message> for DfaWindow {
          canvas::Event::Mouse(mouse::Event::ButtonPressed(mouse::Button::Left)) => {
             
             let message = 
-               if exists && node.is_some() {
-                  *interaction = Interaction::AddCon { init: *node.unwrap() };
+               if exists && let Some(node) = node {
+                  *interaction = Interaction::AddCon { init: *node };
                   None
                } else {
                   let nearest = self.dfa.nodes.nearest_neighbor_with_distance_2(
                      Node {pos: act_pos, .. } );
-                  let float = if nearest.is_none() {
-                        f32::MAX
+                  let float = if let Some((_, distance)) = nearest {
+                        distance
                      } else {
-                        nearest.unwrap().1
+                        f32::MAX
                      };
                   if float < ((NODE_SIZE.pow(2) << 3) as f32){  
                      return None;
@@ -142,11 +158,11 @@ impl canvas::Program<Message> for DfaWindow {
                      .unwrap_or(canvas::Action::request_redraw()).and_capture(),)
                }else {
                   *interaction = Interaction::None;
-                  return None;
+                  None
                }// TODO
             } else {
                *interaction = Interaction::None;
-               return None; // TODO
+               None// TODO
             }
          }
          _ => None
@@ -159,11 +175,16 @@ impl canvas::Program<Message> for DfaWindow {
 }
 
 impl DfaWindow {
+   /// Implementation of [`ViewFn`](trait@iced::application::ViewFn) for the graphical instance
+   /// generating the view based on the current DFA
    pub fn view(&self) -> iced::Element<'_, Message> {
       canvas::Canvas::new(self).width(iced::Fill).height(iced::Fill).into()
    }
 }
 impl DfaInstance {
+
+   /// Implementation of [`UpdateFn`](trait@iced::application::UpdateFn) for the graphical instance
+   /// handling messages and updating the state of the DFA editor accordingly
    pub fn update(&mut self, message: Message) {
       match message {
          Message::AddNode {pos} => {
@@ -188,6 +209,8 @@ impl DfaInstance {
    }
 }
 
+/// A helper function to generate a [canvas::Text]
+/// object for a given node, displaying its index as "S{index}"
 fn get_node_text(node: &Node) -> canvas::Text{
    canvas::Text {
       content: format!("S{}", node.index.unwrap_or(0)),
@@ -203,12 +226,17 @@ fn get_node_text(node: &Node) -> canvas::Text{
    }
 }
 
-#[allow(dead_code)]
+/// A node in the DFA, represented as a point with additional metadata
+/// such as whether it is an accepting or initial state
 #[derive(Debug, Clone, Copy, PartialEq, Default)]
 pub struct Node {
+   /// The position of the node on the canvas
    pub pos: iced::Point<f32>,
+   /// The index of the node in the RTree, used for referencing in connections
    pub index: Option<usize> = None,
+   /// Whether the node is an accepting state
    pub is_accepting: bool = false,
+   /// Whether the node is an initial state
    pub is_initial: bool = false,
 }
 
@@ -244,21 +272,18 @@ impl Point for Node {
 }
 
 
-#[allow(dead_code)]
-#[derive(Debug)]
-pub struct Edge {
-   start: Option<usize>,
-   end: usize,
-   symbol: char,
-}
-
-#[allow(dead_code)]
+/// How the user is currently interacting with the DFA editor,
+/// such as adding a connection by dragging from one node to another
 #[derive(Debug, Default, PartialEq)]
 pub enum Interaction {
    #[default]
+   /// No interaction is currently happening
    None,
-   AddNode,
-   DelNode,
-   AddCon{init: Node},
-   RemCon,
+
+   /// User is adding a connection by dragging from one node to another,
+   /// with the initial node stored in `init`
+   AddCon{
+      /// The starting point of the connection
+      init: Node
+   },
 }
