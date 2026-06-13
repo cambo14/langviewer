@@ -6,4 +6,5 @@ Langviewer is currently very early in implementation with only a full DFA implem
 # Documentation
 Documentation for LangViewers source code can be viewed [here](https://cambo14.github.io/langviewer/)
 
+# Licensing
 Langview is licensed under the [GNU AGPLv3](./LICENCE)
