@@ -81,15 +81,17 @@ impl canvas::Program<Message> for DfaWindow {
       for conn in &self.dfa.edges {
          parallel.clear();
          for edge in self.dfa.edges.iter().filter(
-            |e| e.1.start.1 == conn.1.start.1 && e.1.end.1 == conn.1.end.1)
+            |e| (e.1.start.1 == conn.1.start.1 && e.1.end.1 == conn.1.end.1) ||
+            (e.1.start.1 == conn.1.end.1 && e.1.end.1 == conn.1.start.1))
          {
             parallel.push(*edge.0);
          }
          let path = compute_arrow(
             *conn.0,
             &parallel, &self.dfa.nodes, &self.dfa.edges);
-         frame.stroke(&path,
+         frame.stroke(&path.1,
             canvas::Stroke::default().with_color(Color::BLACK).with_width(2.0).with_line_join(canvas::LineJoin::Round));
+         frame.fill_text(path.0);
       }
 
       vec![frame.into_geometry()]

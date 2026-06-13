@@ -15,13 +15,16 @@
     along with this program.  If not, see <https://www.gnu.org/licenses/>. */
 
 use std::hash::{Hash, Hasher};
-use iced::{Vector, widget::canvas::{self, path::Builder}};
+use iced::{Color, Vector, widget::{canvas::{self, path::Builder}, text::LineHeight}};
 use rstar::{AABB, RTree};
 use rustc_hash::FxHashMap;
 
 use crate::graphics::dfa_mode::NODE_SIZE;
 
 use super::dfa_mode::Node;
+
+/// The font size for the transition symbol text on the connection arrows.
+const SYMBOL_SIZE: iced::Pixels = iced::Pixels(16.0);
 
 /// How far to offset parallel connections between the same two nodes
 const PARALLEL_OFFSET: f32 = 50.0;
@@ -75,9 +78,19 @@ impl Hash for Connection {
     }
 }
 
-/// Creates a Path for the arrow representing the connection at `conn_idx`
+/// Generates the graphical component for an arrow representing the connection at `conn_idx`
+/// 
+/// # Arguments
+/// * `conn_idx` - The index of the connection for which to compute the arrow
+/// * `parallel` - A slice of indices of connections that are parallel to the connection at `conn_idx` and their direction 
+///   (true for same direction, false for opposite), used to determine how much to offset the curve for this connection from the midpoint between the start and end nodes
+/// * `nodes` - The RTree containing the nodes of the DFA, used for spatial queries to nudge the curve away from nearby nodes
+/// * `conns` - A HashMap of all connections in the DFA, used to retrieve the details of the connection at `conn_idx` and its parallel connections
+/// 
+/// # Returns
+/// A tuple containing the graphical objects for the transition symbol and the path of the arrow to be drawn on the canvas
 pub fn compute_arrow(conn_idx: usize,
-    parallel: &[usize], nodes: &RTree<Node>, conns: &FxHashMap<usize, Connection>) -> canvas::Path
+    parallel: &[usize], nodes: &RTree<Node>, conns: &FxHashMap<usize, Connection>) -> (canvas::Text, canvas::Path)
 {
     let conn = conns.get(&conn_idx).unwrap();
     let midpoint: iced::Point<f32> = iced::Point::new((conn.start.0.x + conn.end.0.x) / 2.0,
@@ -92,7 +105,11 @@ pub fn compute_arrow(conn_idx: usize,
     let edge_rank = ind as f32 - (n as f32 - 1.0) / 2.0;
     let offset = edge_rank * PARALLEL_OFFSET;
 
-    let mut cp = midpoint + perp * offset;
+    let mut cp = if conn.start.0.x - conn.end.0.x > 0.0 {
+        midpoint + perp * offset
+    } else {
+        midpoint - perp * offset
+    };
 
     let bbox = AABB::from_center(
         Node { pos: midpoint, .. },
@@ -120,7 +137,7 @@ pub fn compute_arrow(conn_idx: usize,
     let curve_start = start_centre + start_dir * NODE_SIZE as f32;
     let curve_end   = end_centre   - end_dir   * NODE_SIZE as f32;
 
-    let arrow_off = end_dir * (NODE_SIZE as f32 * ARROW_SCALE); // scale as you like
+    let arrow_off = end_dir * (NODE_SIZE as f32 * ARROW_SCALE);
         
     let mut build = Builder::new();
     build.move_to(curve_start);
@@ -130,5 +147,17 @@ pub fn compute_arrow(conn_idx: usize,
     build.line_to(curve_end + left!(arrow_off));
     build.move_to(curve_end);
     build.line_to(curve_end + right!(arrow_off));
-    build.build()
+
+    let curve_point = iced::Point::new(
+        0.25 * curve_start.x + 0.5 * cp.x + 0.25 * curve_end.x,
+        0.25 * curve_start.y + 0.5 * cp.y + 0.25 * curve_end.y) + 
+        if conn.start.0.x - conn.end.0.x > 0.0 { perp * 10.0} else { -perp * 10.0 };
+    (
+        canvas::Text { content: conn.symbol.to_string(), position: curve_point,
+            color: Color::BLACK, size: SYMBOL_SIZE, font: iced::Font::DEFAULT,
+            align_x: iced::widget::text::Alignment::Center, align_y: iced::alignment::Vertical::Center,
+            line_height: LineHeight::Relative(1.0), max_width: 5.0,
+            shaping: iced::widget::text::Shaping::Auto,} ,
+        build.build()
+    )
 }
