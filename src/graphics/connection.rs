@@ -21,7 +21,9 @@ use crate::graphics::dfa_mode::NODE_SIZE;
 
 use super::dfa_mode::Node;
 
+/// How far to offset parallel connections between the same two nodes
 const PARALLEL_OFFSET: f32 = 50.0;
+
 const NUDGE_THRESHOLD: f32 = (NODE_SIZE << 3) as f32; // distance at which to nudge the curve away from a nearby node
 /// The angle of the arrowhead in radians, relative to the negative tangent vector of the end of the connection.
 const ARROW_ANGLE: f32 = std::f32::consts::PI / 6.0;
@@ -69,7 +71,6 @@ pub fn compute_arrow(conn_idx: usize,
     let ind = parallel.iter().position(|&idx| idx == conn_idx).unwrap();
     let n = parallel.len();
 
-    // Symmetric rank: for n=4 -> -1.5,-0.5,0.5,1.5 ; for n=3 -> -1,0,1
     let edge_rank = ind as f32 - (n as f32 - 1.0) / 2.0;
     let offset = edge_rank * PARALLEL_OFFSET;
 
@@ -77,16 +78,14 @@ pub fn compute_arrow(conn_idx: usize,
 
     let bbox = AABB::from_center(
         Node { pos: midpoint, .. },
-        norm + (NODE_SIZE << 2) as f32,
-);
+        norm + (NODE_SIZE << 2) as f32);
     for nearby_node in nodes.locate_in_envelope(bbox) {
-        log::debug!("Nearby node at {:?} with index {}", nearby_node.pos, nearby_node.index.unwrap());
         let to_node = nearby_node.pos - cp;
         let dist = (to_node.x.powi(2) + to_node.y.powi(2)).sqrt();
-        if dist < NUDGE_THRESHOLD {
+        if dist < NUDGE_THRESHOLD && nearby_node.index.unwrap() != conn.start.1 && nearby_node.index.unwrap() != conn.end.1 {
             let size = (to_node.x.powi(2) + to_node.y.powi(2)).sqrt();
-            let norm = Vector::new(to_node.x / size, to_node.y / size);
-            cp -= norm * (NUDGE_THRESHOLD - dist) * 0.5;
+            let normal = Vector::new(to_node.x / size, to_node.y / size);
+            cp -= normal * (NUDGE_THRESHOLD - dist) * 0.5;
         }
     }
     let start_centre = conn.start.0;

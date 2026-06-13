@@ -1,2 +1,9 @@
 [build]
 rustdocflags = ["--document-private-items"]
+
+[alias]
+own-docs = "doc --no-deps"
+
+[unstable]
+rustdoc-map = true
+

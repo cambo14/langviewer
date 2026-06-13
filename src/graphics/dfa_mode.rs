@@ -83,7 +83,7 @@ impl canvas::Program<Message> for DfaWindow {
    }
 
    /// Update the state of the DFA editor based on an [`Event`](enum@canvas::Event), such as mouse interactions
-   /// and returns any resulting [`Action`](enum@canvas::Action) to be performed, such as redrawing the
+   /// and returns any resulting [`Action`](struct@canvas::Action) to be performed, such as redrawing the
    /// canvas or publishing a [`Message`].
    fn update(&self, interaction: &mut Interaction,
          event: &canvas::Event, bounds: Rectangle,
@@ -135,7 +135,8 @@ impl canvas::Program<Message> for DfaWindow {
                      
                   let message = {
                      *interaction = Interaction::None;
-                     Some(Message::AddCon { start: start_node.pos, end: end_node.pos, symbol: self.dfa.edges.len().to_string().chars().next().unwrap_or('?') }) //TODO: have a better way to determine symbol
+                     Some(Message::AddCon { start: start_node.pos, end: end_node.pos,
+                        symbol: self.dfa.edges.len().to_string().chars().next().unwrap_or('?') }) //TODO: have a better way to determine symbol
                   };
                   Some(message.map(canvas::Action::publish)
                      .unwrap_or(canvas::Action::request_redraw()).and_capture(),)

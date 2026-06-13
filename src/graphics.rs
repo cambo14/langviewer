@@ -14,9 +14,6 @@ GNU Affero General Public License for more details.
 You should have received a copy of the GNU Affero General Public License
 along with this program.  If not, see <https://www.gnu.org/licenses/>. */
 
-
-use std::path::PathBuf;
-
 /// This module is designed to handle the graphical implementation of dfa's
 mod dfa_mode;
 
@@ -29,6 +26,7 @@ use rstar::RTree;
 
 const WINDOW: &str = "window";
 
+/// The different Messages for the overarching graphical instance
 #[derive(Debug, Clone, Copy)]
 enum Message {
    DfaMode,
@@ -52,19 +50,21 @@ pub fn initialise() -> iced::Result {
 
 /// The graphical instance of the application
 pub struct GraphicsInstance{
-   file: Option<PathBuf>,
    mode: EditorMode,
 }
 
 impl GraphicsInstance{
+
+   /// Generate a new graphical instance with an empty editor and focuses on it
    fn new() -> (Self, iced::Task<Message>){
       (Self{
-         file: None,
          mode: EditorMode::Empty,
       },
       operation::focus(WINDOW),)
    }
 
+   /// Implementation of [`ViewFn`](fn@iced::application::ViewFn) for the graphical instance
+   /// generating the view based on the current editor mode
    fn view(& self) -> Element<'_, Message>{
       let toolbar = row![
          toolbar_button("DFA Creation", "DFA Creation mode", Some(Message::DfaMode)),];
@@ -75,6 +75,8 @@ impl GraphicsInstance{
       column![toolbar, content].into()
    }
 
+   /// Implementation of [`UpdateFn`](fn@iced::application::UpdateFn) for the graphical instance
+   /// handling messages and updating the state of the application accordingly
    fn update(& mut self, message: Message) -> iced::Task<Message>{
       match message{
          Message::DfaMode => {
@@ -93,6 +95,7 @@ impl GraphicsInstance{
 
 }
 
+/// A helper function to generate a toolbar button with a tooltip and optional on_press message
 fn toolbar_button<'a, Message:Clone + 'a>(
       content: impl Into<Element<'a, Message>>,
       label: &'a str,
