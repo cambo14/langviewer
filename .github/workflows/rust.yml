@@ -1,0 +1,45 @@
+name: Rust
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: 'pages'
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build:
+
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
+    - name: Install Rust toolchain
+      uses: dtolnay/rust-toolchain@nightly
+    - name: Build
+      run: cargo build --verbose
+    - name: build-docs
+      run: cargo own-docs
+    - name: Upload artifact
+      uses: actions/upload-pages-artifact@v3
+      with:
+          path: 'target/doc/'
+
+    - name: Deploy to GitHub Pages
+      id: deployment
+      uses: actions/deploy-pages@v4
+
+# TODO on testing working
+#    - name: Run tests
+#      run: cargo test --verbose
