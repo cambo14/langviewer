@@ -8,6 +8,7 @@ env_logger = "0.11.10"
 iced = {version = "0.14.0", features = ["canvas"]}
 log = "0.4.32"
 rstar = "0.13.0"
+rustc-hash = "2.1.2"
 
 [profile.release]
 lto = true          

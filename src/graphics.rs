@@ -20,11 +20,12 @@ mod dfa_mode;
 /// Manages connections between nodes in the DFA, including their rendering and interaction logic
 mod connection;
 
+
 use iced::Element;
-use iced::wgpu::naga::FastHashMap;
 use iced::widget::{
    button, center_x, column, container, operation, row, tooltip};
 use rstar::RTree;
+use rustc_hash::FxHashMap;
 
 /// An identifier for the main window of the application
 const WINDOW: &str = "window";
@@ -95,7 +96,7 @@ impl GraphicsInstance{
          Message::DfaMode => {
             log::debug!("DFA Creation mode entered");
             self.mode = EditorMode::Dfa { dfa_win: dfa_mode::DfaWindow { dfa: dfa_mode::DfaInstance { 
-               nodes: RTree::new(), edges: Vec::new(), edge_index: FastHashMap::default() } } };
+               nodes: RTree::new(), edges: FxHashMap::default() } } };
          }
          Message::DfaMessage(dfa_msg) => {
             if let EditorMode::Dfa {dfa_win} = & mut self.mode {

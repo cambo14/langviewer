@@ -14,8 +14,10 @@
     You should have received a copy of the GNU Affero General Public License
     along with this program.  If not, see <https://www.gnu.org/licenses/>. */
 
+use std::hash::{Hash, Hasher};
 use iced::{Vector, widget::canvas::{self, path::Builder}};
 use rstar::{AABB, RTree};
+use rustc_hash::FxHashMap;
 
 use crate::graphics::dfa_mode::NODE_SIZE;
 
@@ -58,11 +60,26 @@ pub struct Connection {
     pub symbol: char, 
 }
 
+impl PartialEq for Connection {
+    fn eq(&self, other: &Self) -> bool {
+        self.start.1 == other.start.1 && self.end.1 == other.end.1 && self.symbol == other.symbol
+    }
+}
+impl Eq for Connection {}
+
+impl Hash for Connection {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.start.1.hash(state);
+        self.end.1.hash(state);
+        self.symbol.hash(state);
+    }
+}
+
 /// Creates a Path for the arrow representing the connection at `conn_idx`
 pub fn compute_arrow(conn_idx: usize,
-    parallel: &[usize], nodes: &RTree<Node>, conns: &[Connection]) -> canvas::Path
+    parallel: &[usize], nodes: &RTree<Node>, conns: &FxHashMap<usize, Connection>) -> canvas::Path
 {
-    let conn = conns[conn_idx];
+    let conn = conns.get(&conn_idx).unwrap();
     let midpoint: iced::Point<f32> = iced::Point::new((conn.start.0.x + conn.end.0.x) / 2.0,
         (conn.start.0.y + conn.end.0.y) / 2.0);
     let edge_vec = conn.end.0 - conn.start.0;

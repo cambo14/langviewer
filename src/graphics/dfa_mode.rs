@@ -14,14 +14,12 @@
     You should have received a copy of the GNU Affero General Public License
     along with this program.  If not, see <https://www.gnu.org/licenses/>. */
 
-
-
 use iced::mouse::{self};
-use iced::wgpu::naga::FastHashMap;
 use iced::widget::text::LineHeight;
 use iced::widget::{canvas};
 use iced::{Color, Rectangle, Renderer, Theme};
 use rstar::{Point, RTree};
+use rustc_hash::FxHashMap;
 use super::connection::{Connection, compute_arrow};
 
 /// The radius of a DFA node when drawn on the canvas.
@@ -65,10 +63,8 @@ pub struct DfaWindow{
 pub struct DfaInstance {
    /// The nodes in the DFA, stored in an RTree for efficient spatial queries
    pub nodes: RTree<Node>,
-   /// The connections (edges) in the DFA, stored as a vector
-   pub edges: Vec<Connection>,
-   /// An index for quickly finding the index of a connection in `edges` based on its start node, end node, and symbol
-   pub edge_index: FastHashMap<(usize, usize, char), usize>,
+   /// The connections (edges) in the DFA, stored as a HashMap for efficient insertion and lookup
+   pub edges: FxHashMap<usize, Connection>,
 }
 
 impl canvas::Program<Message> for DfaWindow {
@@ -84,13 +80,14 @@ impl canvas::Program<Message> for DfaWindow {
       let mut parallel = Vec::with_capacity(self.dfa.edges.len());
       for conn in &self.dfa.edges {
          parallel.clear();
-         for idx in 0..self.dfa.edges.len() {
-            if self.dfa.edges[idx].start.1 == conn.start.1 && self.dfa.edges[idx].end.1 == conn.end.1 {
-               parallel.push(idx);
-            }
+         for edge in self.dfa.edges.iter().filter(
+            |e| e.1.start.1 == conn.1.start.1 && e.1.end.1 == conn.1.end.1)
+         {
+            parallel.push(*edge.0);
          }
          let path = compute_arrow(
-            *self.dfa.edge_index.get(&(conn.start.1, conn.end.1, conn.symbol)).unwrap(), &parallel, &self.dfa.nodes, &self.dfa.edges);
+            *conn.0,
+            &parallel, &self.dfa.nodes, &self.dfa.edges);
          frame.stroke(&path,
             canvas::Stroke::default().with_color(Color::BLACK).with_width(2.0).with_line_join(canvas::LineJoin::Round));
       }
@@ -201,9 +198,8 @@ impl DfaInstance {
                   start, start_act.is_none(), end, end_act.is_none());
                return;
             }
-            self.edges.push(Connection {start: (start_act.unwrap().pos, start_act.unwrap().index.unwrap()),
+            self.edges.insert(self.edges.len(), Connection {start: (start_act.unwrap().pos, start_act.unwrap().index.unwrap()),
                end: (end_act.unwrap().pos, end_act.unwrap().index.unwrap()), symbol});
-            self.edge_index.insert((start_act.unwrap().index.unwrap(), end_act.unwrap().index.unwrap(), symbol), self.edges.len() - 1);
          }
       }
    }
