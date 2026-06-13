@@ -17,3 +17,9 @@ strip = true
 
 [lints.rust]
 missing_docs = "warn"
+
+[lints.clippy]
+missing_docs_in_private_items = "warn"
+
+[lints.rustdoc]
+private_intra_doc_links = "warn"
