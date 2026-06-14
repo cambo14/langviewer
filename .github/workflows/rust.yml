@@ -31,6 +31,11 @@ jobs:
       run: cargo build --verbose
     - name: build-docs
       run: cargo own-docs
+    - name: Create Google verification file
+      run: |
+        cat > target/doc/google7aded6cb11498735.html <<EOF
+        ${{ secrets.GOOGLE_VERIFICATION_TOKEN }}
+        EOF
     - name: Upload artifact
       uses: actions/upload-pages-artifact@v3
       with:
