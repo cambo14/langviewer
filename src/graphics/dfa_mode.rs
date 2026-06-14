@@ -187,7 +187,8 @@ impl DfaInstance {
    pub fn update(&mut self, message: Message) {
       match message {
          Message::AddNode {pos} => {
-            self.nodes.insert(Node { pos: iced::Point::new(pos.x, pos.y), index: Some(self.nodes.size()), is_accepting: false, is_initial: false });
+            self.nodes.insert(Node { pos: iced::Point::new(pos.x, pos.y), index: Some(self.nodes.size()),
+               is_accepting: self.nodes.size() == 0, is_initial: false });
          }
 
          Message::AddCon {start, end, symbol} => {

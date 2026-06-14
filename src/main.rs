@@ -14,7 +14,8 @@
     You should have received a copy of the GNU Affero General Public License
     along with this program.  If not, see <https://www.gnu.org/licenses/>. */
 
-//! The main entry point for the application, creating a graphical instance and running it
+//! The main entry point for a [langviewer](https://github.com/cambo14/langviewer) application instance,
+//! creating a graphical instance and running it
 
 
 #![feature(default_field_values)]
