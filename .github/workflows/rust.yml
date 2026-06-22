@@ -33,7 +33,7 @@ jobs:
       run: cargo build --verbose
     - name: build-docs
       env:
-        RUSTDOCFLAGS: --extern-html-root-url langviewer=https://cambo14.github.io/
+        RUSTDOCFLAGS: --extern-html-root-url langviewer=https://cambo14.github.io/langviewer/
       run: cargo own-docs
     - name: Prepare pages artifact
       run: |
@@ -57,6 +57,7 @@ jobs:
             s|src="\.\./crates\.js"|src="./crates.js"|g;
             s|data-root-path="(?:\.\./)+"|data-root-path="./"|g;
             s|data-static-root-path="(?:\.\./)+static\.files/"|data-static-root-path="./static.files/"|g;
+            s|href="(?:\.\./)+langviewer/|href="./|g;
           ' "$f"
         done
     - name: Add other files
@@ -66,7 +67,7 @@ jobs:
         EOF
     - name: Sitemap.xml
       run: |
-        BASE_URL="https://cambo14.github.io"
+        BASE_URL="https://cambo14.github.io/langviewer"
         OUT_DIR="target/pages"
 
         cat > sitemap.xml <<EOF
@@ -81,7 +82,7 @@ jobs:
         if [ "$rel" = "/index.html" ]; then
           url="$BASE_URL/"
         elif [[ "$rel" == */index.html ]]; then
-          url="$BASE_URL${rel%index.html}"
+          url="$BASE_URL$/"
         else
           url="$BASE_URL$rel"
         fi
@@ -107,7 +108,7 @@ jobs:
         User-agent: *
         Allow: /
         
-        Sitemap: https://cambo14.github.io/sitemap.xml
+        Sitemap: https://cambo14.github.io/langviewer/sitemap.xml
         EOF
         
         cp robots.txt target/pages/
