@@ -76,7 +76,7 @@ jobs:
         <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
         EOF
 
-        find "$OUT_DIR" -type f \( -name "*.html" -o -name "*.css" -o -name "*.js" \) | while read file; do
+        find "$OUT_DIR" -type f -name "*.html" | while read file; do
 
         rel="${file#$OUT_DIR}"
 
