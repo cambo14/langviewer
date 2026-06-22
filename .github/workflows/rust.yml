@@ -60,6 +60,7 @@ jobs:
             s|href="(?:\.\./)+langviewer/|href="./|g;
           ' "$f"
         done
+        perl -pi -e 's|<head>|<head><meta name="google-site-verification" content="2hOtC_euAsd4-6x85U4dRBeMxzgbXUi1-R5MxEiVVOU" />|' target/pages/index.html
     - name: Add other files
       run: |
         cat > target/pages/google7aded6cb11498735.html <<EOF
@@ -82,7 +83,7 @@ jobs:
         if [ "$rel" = "/index.html" ]; then
           url="$BASE_URL/"
         elif [[ "$rel" == */index.html ]]; then
-          url="$BASE_URL$/"
+          url="$BASE_URL${rel%index.html}"
         else
           url="$BASE_URL$rel"
         fi
