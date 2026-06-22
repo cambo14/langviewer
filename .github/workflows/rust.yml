@@ -57,7 +57,6 @@ jobs:
             s|src="\.\./crates\.js"|src="./crates.js"|g;
             s|data-root-path="(?:\.\./)+"|data-root-path="./"|g;
             s|data-static-root-path="(?:\.\./)+static\.files/"|data-static-root-path="./static.files/"|g;
-            s|href="(?:\.\./)+langviewer/|href="./|g;
           ' "$f"
         done
     - name: Add other files
