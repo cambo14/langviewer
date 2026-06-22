@@ -159,6 +159,15 @@ impl canvas::Program<Message> for DfaWindow {
                None// TODO
             }
          }
+         canvas::Event::Mouse(mouse::Event::ButtonReleased(mouse::Button::Right)) => {
+            if let Some(conn) = self.dfa.edges.nearest_neighbor_with_distance_2(
+               Connection::generate(|a| if a==1 {act_pos.y} else {act_pos.x})) 
+            {
+               
+            }
+            *interaction = Interaction::None;
+            None
+         }
          _ => None
       }
 }
