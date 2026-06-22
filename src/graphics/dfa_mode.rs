@@ -39,6 +39,11 @@ pub enum Message{
       /// The position to add the node at
       pos: iced::Point<f32>
    },
+   /// Edit a given connection
+   EditCon {
+      /// The index of the connection to edit
+      index: usize
+   },
 
    /// Add a connection between two nodes with for the transition associated with given symbol
    AddCon {
@@ -103,6 +108,7 @@ impl canvas::Program<Message> for DfaWindow {
       let (exists, pos) = (cursor.position().is_some(),
          cursor.position().unwrap_or_default());
       let act_pos = iced::Point::new(pos.x, pos.y);
+      let bound_pos = iced::Point::new(pos.x - bounds.x, pos.y - bounds.y);
       let node: Option<&Node> = self.dfa.nodes.locate_within_distance(
          Node { pos: act_pos, .. },
          (NODE_SIZE.pow(2) << 1) as f32).next();
@@ -127,7 +133,7 @@ impl canvas::Program<Message> for DfaWindow {
                      return None;
                   }
                   *interaction = Interaction::None;
-                  Some(Message::AddNode {pos: iced::Point::new(pos.x - bounds.x, pos.y - bounds.y)})
+                  Some(Message::AddNode {pos: bound_pos})
             };
             Some(message.map(canvas::Action::publish)
             .unwrap_or(canvas::Action::request_redraw()).and_capture(),)
@@ -157,6 +163,19 @@ impl canvas::Program<Message> for DfaWindow {
             } else {
                *interaction = Interaction::None;
                None// TODO
+            }
+         }
+         canvas::Event::Mouse(mouse::Event::ButtonReleased(mouse::Button::Right)) => {
+            if let Some((conn, dist)) = self.dfa.edges.nearest_neighbor_with_distance_2(
+               Connection::generate(|a| if a==1 {bound_pos.y} else {bound_pos.x}), ) && dist < NODE_SIZE.pow(2) as f32
+            {
+               
+               let message = {*interaction = Interaction::EditCon { index: conn.index.unwrap_or(0) };
+                  Some(Message::EditCon { index: conn.index.unwrap_or(0) })};
+               Some(message.map(canvas::Action::publish).unwrap_or(canvas::Action::request_redraw()).and_capture(),)
+            } else {
+               *interaction = Interaction::None;
+               None
             }
          }
          _ => None
@@ -196,14 +215,14 @@ impl DfaInstance {
                   start, start_act.is_none(), end, end_act.is_none());
                return;
             }
-            self.edges.insert(Connection {
-               start: (start_act.unwrap().pos, start_act.unwrap().index.unwrap_or(0)),
-               end: (end_act.unwrap().pos, end_act.unwrap().index.unwrap_or(0)),
+            self.edges.insert(Connection::new(
+               (start_act.unwrap().pos, start_act.unwrap().index.unwrap_or(0)),
+               (end_act.unwrap().pos, end_act.unwrap().index.unwrap_or(0)),
                symbol,
-               label_loc: iced::Point::new((start.x + end.x) / 2.0, (start.y + end.y) / 2.0),
-               index: Some(self.edges.size()),
-               path: None,
-            });
+               iced::Point::new((start.x + end.x) / 2.0, (start.y + end.y) / 2.0),
+               Some(self.edges.size()),
+               None,
+            ));
             let edge_snap: Vec<_> = self.edges.iter().cloned().collect();
             let mut parallel: Vec<&Connection> = Vec::with_capacity(self.edges.size());
             let conn_size = self.edges.size();
@@ -226,6 +245,11 @@ impl DfaInstance {
                let conn = self.edges.iter_mut().nth(i).unwrap();
                conn.label_loc = path.0;
                conn.path = Some(path.1);
+            }
+         }
+         Message::EditCon { index } => {
+            if let Some(conn) = self.edges.iter_mut().find(|c| c.index == Some(index)) {
+               conn.edit = true;
             }
          }
       }
@@ -308,5 +332,11 @@ pub enum Interaction {
    AddCon{
       /// The starting point of the connection
       init: Node
+   },
+
+   /// User is editing a connection, with the connection being edited stored in `conn`
+   EditCon{
+      /// The index of the connection to edit
+      index: usize
    },
 }

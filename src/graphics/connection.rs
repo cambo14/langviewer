@@ -63,11 +63,46 @@ pub struct Connection {
     /// The label location
     pub label_loc: iced::Point<f32>,
     /// The index of the connection in the RTree, used for efficient updates when moving nodes
-    pub index: Option<usize>,
+    pub index: Option<usize> = None,
     /// The path object representing the curve of the connection, used for rendering on the canvas
-    pub path: Option<canvas::Path>,
+    pub path: Option<canvas::Path> = None,
+    /// A flag indicating whether the connection is currently being edited
+    pub edit: bool = false,
 }
 
+
+impl Connection {
+    /// Creates a new connection with the given parameters
+    /// 
+    /// # Arguments
+    /// * `start` - The starting point and index of the node
+    /// * `end` - The ending point and index of the node
+    /// * `symbol` - The symbol associated with the transition
+    /// * `label_loc` - The location of the label for the connection
+    /// * `index` - The index of the connection in the RTree
+    /// * `path` - The path object representing the curve of the connection, used for rendering on the canvas
+    /// 
+    /// # Returns
+    /// A new connection with the given parameters
+    pub fn new(
+        start: (iced::Point<f32>, usize),
+        end: (iced::Point<f32>, usize),
+        symbol: char,
+        label_loc: iced::Point<f32>,
+        index: Option<usize>,
+        path: Option<canvas::Path>,
+    ) -> Self {
+        Connection {
+            start,
+            end,
+            symbol,
+            label_loc,
+            index,
+            path,
+            edit: false,
+        }
+    }
+}
 
 impl rstar::Point for Connection {
     type Scalar = f32;
@@ -78,8 +113,7 @@ impl rstar::Point for Connection {
             end: (iced::Point::new(0.0, 0.0), 0),
             symbol: '\0',
             label_loc: iced::Point::new(generator(0), generator(1)),
-            index: None,
-            path: None,
+            ..
         }
     }
     const DIMENSIONS: usize = 2;
@@ -201,7 +235,7 @@ pub fn compute_arrow(conn: &Connection,
 /// Generates the graphical text representing the connection, displaying
 /// the transition symbol at the label location of the connection
 pub fn connection_text(conn: &Connection) -> canvas::Text {
-    canvas::Text { content: conn.symbol.to_string(), position: conn.label_loc,
+    canvas::Text { content: if conn.edit { "\0".to_string() } else { conn.symbol.to_string() }, position: conn.label_loc,
         color: Color::BLACK, size: SYMBOL_SIZE, font: iced::Font::DEFAULT,
         align_x: iced::widget::text::Alignment::Center, align_y: iced::alignment::Vertical::Center,
         line_height: LineHeight::Relative(1.0), max_width: 5.0,
