@@ -33,7 +33,7 @@ jobs:
       run: cargo build --verbose
     - name: build-docs
       env:
-        RUSTDOCFLAGS: --extern-html-root-url langviewer=https://cambo14.github.io/langviewer/
+        RUSTDOCFLAGS: --extern-html-root-url langviewer=https://cambo14.github.io/
       run: cargo own-docs
     - name: Prepare pages artifact
       run: |
@@ -67,7 +67,7 @@ jobs:
         EOF
     - name: Sitemap.xml
       run: |
-        BASE_URL="https://cambo14.github.io/langviewer"
+        BASE_URL="https://cambo14.github.io"
         OUT_DIR="target/pages"
 
         cat > sitemap.xml <<EOF
@@ -108,7 +108,7 @@ jobs:
         User-agent: *
         Allow: /
         
-        Sitemap: https://cambo14.github.io/langviewer/sitemap.xml
+        Sitemap: https://cambo14.github.io/sitemap.xml
         EOF
         
         cp robots.txt target/pages/
