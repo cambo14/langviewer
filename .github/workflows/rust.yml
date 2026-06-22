@@ -2,9 +2,9 @@ name: Rust
 
 on:
   push:
-    branches: [ "main" ]
+    branches: [ "main", "action-test"]
   pull_request:
-    branches: [ "main" ]
+    branches: [ "main", "action-test"]
 
 permissions:
   contents: read
@@ -32,23 +32,51 @@ jobs:
     - name: Build
       run: cargo build --verbose
     - name: build-docs
+      env:
+        RUSTDOCFLAGS: --extern-html-root-url langviewer=https://cambo14.github.io/langviewer/
       run: cargo own-docs
+    - name: Prepare pages artifact
+      run: |
+        # rustdoc puts shared assets (static.files, crates.js, src/) next to the
+        # crate dir; uploading only langviewer/ breaks ../static.files/ links.
+        PAGES=target/pages
+        rm -rf "$PAGES"
+        mkdir -p "$PAGES"
+        cp -r target/doc/langviewer/* "$PAGES"/
+        cp -r target/doc/static.files "$PAGES"/
+        cp target/doc/crates.js "$PAGES"/
+        cp target/doc/src-files.js "$PAGES"/
+        cp -r target/doc/src "$PAGES"/
+        cp -r target/doc/search.index "$PAGES"/
+        cp -r target/doc/trait.impl "$PAGES"/
+        find "$PAGES" \( -name '*.html' -o -name '*.js' \) -print0 | while IFS= read -r -d '' f; do
+          perl -pi -e '
+            s|(\.\./)+static\.files/|./static.files/|g;
+            s|(\.\./)+src/|./src/|g;
+            s|href="\.\./crates\.js"|href="./crates.js"|g;
+            s|src="\.\./crates\.js"|src="./crates.js"|g;
+            s|data-root-path="(?:\.\./)+"|data-root-path="./"|g;
+            s|data-static-root-path="(?:\.\./)+static\.files/"|data-static-root-path="./static.files/"|g;
+            s|href="(?:\.\./)+langviewer/|href="./|g;
+          ' "$f"
+        done
+        perl -pi -e 's|<head>|<head><meta name="google-site-verification" content="2hOtC_euAsd4-6x85U4dRBeMxzgbXUi1-R5MxEiVVOU" />|' target/pages/index.html
     - name: Add other files
       run: |
-        cat > target/doc/google7aded6cb11498735.html <<EOF
+        cat > target/pages/google7aded6cb11498735.html <<EOF
         ${{ secrets.GOOGLE_VERIFICATION_TOKEN }}
         EOF
     - name: Sitemap.xml
       run: |
-        BASE_URL="https://cambo14.github.io"
-        OUT_DIR="target/doc"
+        BASE_URL="https://cambo14.github.io/langviewer"
+        OUT_DIR="target/pages"
 
         cat > sitemap.xml <<EOF
         <?xml version="1.0" encoding="UTF-8"?>
         <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
         EOF
 
-        find "$OUT_DIR" -type f \( -name "*.html" -o -name "*.css" -o -name "*.js" \) | while read file; do
+        find "$OUT_DIR" -type f -name "*.html" | while read file; do
 
         rel="${file#$OUT_DIR}"
 
@@ -84,13 +112,12 @@ jobs:
         Sitemap: https://cambo14.github.io/langviewer/sitemap.xml
         EOF
         
-        cp robots.txt target/doc/langviewer/
-        
-        
+        cp robots.txt target/pages/
+
     - name: Upload artifact
       uses: actions/upload-pages-artifact@v3
       with:
-          path: 'target/doc/langviewer'
+          path: 'target/pages'
 
     - name: Deploy to GitHub Pages
       id: deployment
