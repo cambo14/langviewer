@@ -38,15 +38,15 @@ jobs:
         EOF
     - name: Sitemap.xml
       run: |
-        BASE_URL="https://cambo14.github.io/langviewer"
-        OUT_DIR="target/doc/langviewer"
+        BASE_URL="https://cambo14.github.io"
+        OUT_DIR="target/doc"
 
         cat > sitemap.xml <<EOF
         <?xml version="1.0" encoding="UTF-8"?>
         <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
         EOF
 
-        find "$OUT_DIR" -type f -name "*.html" | while read file; do
+        find "$OUT_DIR" -type f \( -name "*.html" -o -name "*.css" -o -name "*.js" \) | while read file; do
 
         rel="${file#$OUT_DIR}"
 
@@ -85,7 +85,7 @@ jobs:
         cp robots.txt target/doc/langviewer/
         
         
-    - name: Upload artifact 1
+    - name: Upload artifact
       uses: actions/upload-pages-artifact@v3
       with:
           path: 'target/doc/langviewer'
