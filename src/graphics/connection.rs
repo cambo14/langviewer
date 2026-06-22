@@ -17,9 +17,8 @@
 use std::hash::{Hash, Hasher};
 use iced::{Color, Vector, widget::{canvas::{self, path::Builder}, text::LineHeight}};
 use rstar::{AABB, RTree};
-use rustc_hash::FxHashMap;
 
-use crate::graphics::dfa_mode::NODE_SIZE;
+use crate::graphics::{dfa_mode::NODE_SIZE};
 
 use super::dfa_mode::Node;
 
@@ -53,7 +52,7 @@ macro_rules! right {
 }
 
 /// Represents a connection between two nodes in the DFA with a symbol for transition.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone)]
 pub struct Connection {
     /// The starting point and index of the node
     pub start: (iced::Point<f32>, usize),
@@ -61,6 +60,45 @@ pub struct Connection {
     pub end: (iced::Point<f32>, usize), 
     /// The symbol associated with the transition
     pub symbol: char, 
+    /// The label location
+    pub label_loc: iced::Point<f32>,
+    /// The index of the connection in the RTree, used for efficient updates when moving nodes
+    pub index: Option<usize>,
+    /// The path object representing the curve of the connection, used for rendering on the canvas
+    pub path: Option<canvas::Path>,
+}
+
+
+impl rstar::Point for Connection {
+    type Scalar = f32;
+
+    fn generate(mut generator: impl FnMut(usize) -> Self::Scalar) -> Self {
+        Connection {
+            start: (iced::Point::new(0.0, 0.0), 0),
+            end: (iced::Point::new(0.0, 0.0), 0),
+            symbol: '\0',
+            label_loc: iced::Point::new(generator(0), generator(1)),
+            index: None,
+            path: None,
+        }
+    }
+    const DIMENSIONS: usize = 2;
+
+    fn nth(&self, index: usize) -> Self::Scalar {
+        match index {
+            0 => self.label_loc.x,
+            1 => self.label_loc.y,
+            _ => unreachable!()
+        }
+    }
+
+    fn nth_mut(&mut self, index: usize) -> &mut Self::Scalar {
+        match index {
+            0 => &mut self.label_loc.x,
+            1 => &mut self.label_loc.y,
+            _ => unreachable!()
+        }
+    }
 }
 
 impl PartialEq for Connection {
@@ -89,17 +127,19 @@ impl Hash for Connection {
 /// 
 /// # Returns
 /// A tuple containing the graphical objects for the transition symbol and the path of the arrow to be drawn on the canvas
-pub fn compute_arrow(conn_idx: usize,
-    parallel: &[usize], nodes: &RTree<Node>, conns: &FxHashMap<usize, Connection>) -> (canvas::Text, canvas::Path)
+pub fn compute_arrow(conn: &Connection,
+    parallel: &Vec<&Connection>, nodes: &RTree<Node>, conns: &RTree<Connection>) -> (iced::Point, canvas::Path)
 {
-    let conn = conns.get(&conn_idx).unwrap();
+    let conn = conns.nearest_neighbor(rstar::Point::generate(
+        |i| if i == 0 { conn.label_loc.x } else if i == 1 { conn.label_loc.y } else { 0.0 }
+    )).unwrap();
     let midpoint: iced::Point<f32> = iced::Point::new((conn.start.0.x + conn.end.0.x) / 2.0,
         (conn.start.0.y + conn.end.0.y) / 2.0);
     let edge_vec = conn.end.0 - conn.start.0;
     let norm = (edge_vec.x.powi(2) + edge_vec.y.powi(2)).sqrt();
     let perp = iced::Vector::new(-edge_vec.y / norm, edge_vec.x / norm);
 
-    let ind = parallel.iter().position(|&idx| idx == conn_idx).unwrap();
+    let ind = parallel.iter().position(|&idx| idx.index.unwrap() == conn.index.unwrap_or(0)).unwrap();
     let n = parallel.len();
 
     let edge_rank = ind as f32 - (n as f32 - 1.0) / 2.0;
@@ -153,11 +193,17 @@ pub fn compute_arrow(conn_idx: usize,
         0.25 * curve_start.y + 0.5 * cp.y + 0.25 * curve_end.y) + 
         if conn.start.0.x - conn.end.0.x > 0.0 { perp * 10.0} else { -perp * 10.0 };
     (
-        canvas::Text { content: conn.symbol.to_string(), position: curve_point,
-            color: Color::BLACK, size: SYMBOL_SIZE, font: iced::Font::DEFAULT,
-            align_x: iced::widget::text::Alignment::Center, align_y: iced::alignment::Vertical::Center,
-            line_height: LineHeight::Relative(1.0), max_width: 5.0,
-            shaping: iced::widget::text::Shaping::Auto,} ,
+        curve_point ,
         build.build()
     )
+}
+
+/// Generates the graphical text representing the connection, displaying
+/// the transition symbol at the label location of the connection
+pub fn connection_text(conn: &Connection) -> canvas::Text {
+    canvas::Text { content: conn.symbol.to_string(), position: conn.label_loc,
+        color: Color::BLACK, size: SYMBOL_SIZE, font: iced::Font::DEFAULT,
+        align_x: iced::widget::text::Alignment::Center, align_y: iced::alignment::Vertical::Center,
+        line_height: LineHeight::Relative(1.0), max_width: 5.0,
+        shaping: iced::widget::text::Shaping::Auto,}
 }

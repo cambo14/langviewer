@@ -25,7 +25,6 @@ use iced::Element;
 use iced::widget::{
    button, center_x, column, container, operation, row, tooltip};
 use rstar::RTree;
-use rustc_hash::FxHashMap;
 
 /// An identifier for the main window of the application
 const WINDOW: &str = "window";
@@ -49,7 +48,7 @@ enum EditorMode {
    /// A DFA is currently being edited
    Dfa {
       /// The window containing the DFA editor
-      dfa_win: dfa_mode::DfaWindow
+      dfa_win: Box<dfa_mode::DfaWindow>
    },
    /// An empty canvas with no editor active
    Empty,
@@ -95,8 +94,8 @@ impl GraphicsInstance{
       match message{
          Message::DfaMode => {
             log::debug!("DFA Creation mode entered");
-            self.mode = EditorMode::Dfa { dfa_win: dfa_mode::DfaWindow { dfa: dfa_mode::DfaInstance { 
-               nodes: RTree::new(), edges: FxHashMap::default() } } };
+            self.mode = EditorMode::Dfa { dfa_win: Box::new(dfa_mode::DfaWindow { dfa: dfa_mode::DfaInstance { 
+               nodes: RTree::new(), edges: RTree::new(), } }) };
          }
          Message::DfaMessage(dfa_msg) => {
             if let EditorMode::Dfa {dfa_win} = & mut self.mode {

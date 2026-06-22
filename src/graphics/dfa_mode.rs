@@ -19,7 +19,8 @@ use iced::widget::text::LineHeight;
 use iced::widget::{canvas};
 use iced::{Color, Rectangle, Renderer, Theme};
 use rstar::{Point, RTree};
-use rustc_hash::FxHashMap;
+use crate::graphics::connection;
+
 use super::connection::{Connection, compute_arrow};
 
 /// The radius of a DFA node when drawn on the canvas.
@@ -63,8 +64,8 @@ pub struct DfaWindow{
 pub struct DfaInstance {
    /// The nodes in the DFA, stored in an RTree for efficient spatial queries
    pub nodes: RTree<Node>,
-   /// The connections (edges) in the DFA, stored as a HashMap for efficient insertion and lookup
-   pub edges: FxHashMap<usize, Connection>,
+   /// The edges of the DFA
+   pub edges: RTree<Connection>,
 }
 
 impl canvas::Program<Message> for DfaWindow {
@@ -77,21 +78,15 @@ impl canvas::Program<Message> for DfaWindow {
             canvas::Stroke::default().with_color(Color::BLACK).with_width(2.0).with_line_join(canvas::LineJoin::Round));
          frame.fill_text(text);
       }
-      let mut parallel = Vec::with_capacity(self.dfa.edges.len());
-      for conn in &self.dfa.edges {
-         parallel.clear();
-         for edge in self.dfa.edges.iter().filter(
-            |e| (e.1.start.1 == conn.1.start.1 && e.1.end.1 == conn.1.end.1) ||
-            (e.1.start.1 == conn.1.end.1 && e.1.end.1 == conn.1.start.1))
-         {
-            parallel.push(*edge.0);
+      for connection in self.dfa.edges.iter() {
+         if let Some(path) = &connection.path {
+            frame.stroke(path,
+               canvas::Stroke::default().with_color(Color::BLACK).with_width(2.0).with_line_join(canvas::LineJoin::Round));
+            let text = connection::connection_text(connection);
+            frame.fill_text(text);
          }
-         let path = compute_arrow(
-            *conn.0,
-            &parallel, &self.dfa.nodes, &self.dfa.edges);
-         frame.stroke(&path.1,
-            canvas::Stroke::default().with_color(Color::BLACK).with_width(2.0).with_line_join(canvas::LineJoin::Round));
-         frame.fill_text(path.0);
+         
+         
       }
 
       vec![frame.into_geometry()]
@@ -151,7 +146,7 @@ impl canvas::Program<Message> for DfaWindow {
                   let message = {
                      *interaction = Interaction::None;
                      Some(Message::AddCon { start: start_node.pos, end: end_node.pos,
-                        symbol: self.dfa.edges.len().to_string().chars().next().unwrap_or('?') }) //TODO: have a better way to determine symbol
+                        symbol: self.dfa.edges.size().to_string().chars().next().unwrap_or('?') }) //TODO: have a better way to determine symbol
                   };
                   Some(message.map(canvas::Action::publish)
                      .unwrap_or(canvas::Action::request_redraw()).and_capture(),)
@@ -201,8 +196,37 @@ impl DfaInstance {
                   start, start_act.is_none(), end, end_act.is_none());
                return;
             }
-            self.edges.insert(self.edges.len(), Connection {start: (start_act.unwrap().pos, start_act.unwrap().index.unwrap()),
-               end: (end_act.unwrap().pos, end_act.unwrap().index.unwrap()), symbol});
+            self.edges.insert(Connection {
+               start: (start_act.unwrap().pos, start_act.unwrap().index.unwrap_or(0)),
+               end: (end_act.unwrap().pos, end_act.unwrap().index.unwrap_or(0)),
+               symbol,
+               label_loc: iced::Point::new((start.x + end.x) / 2.0, (start.y + end.y) / 2.0),
+               index: Some(self.edges.size()),
+               path: None,
+            });
+            let edge_snap: Vec<_> = self.edges.iter().cloned().collect();
+            let mut parallel: Vec<&Connection> = Vec::with_capacity(self.edges.size());
+            let conn_size = self.edges.size();
+            let mut paths: Vec<(usize, (iced::Point, canvas::Path))> = Vec::with_capacity(conn_size);
+            for i in 0..conn_size {
+               let conn: &Connection = &edge_snap[i];
+               parallel.clear();
+            
+               for edge in edge_snap.iter().filter(
+                  |e| (e.start.1 == conn.start.1 && e.end.1 == conn.end.1) ||
+                  (e.start.1 == conn.end.1 && e.end.1 == conn.start.1))
+               {
+                  parallel.push(edge);
+               }
+               paths.push((i, (compute_arrow(
+                  conn,
+                  &parallel, &self.nodes, &self.edges))));
+            }
+            for (i, path) in paths{
+               let conn = self.edges.iter_mut().nth(i).unwrap();
+               conn.label_loc = path.0;
+               conn.path = Some(path.1);
+            }
          }
       }
    }
