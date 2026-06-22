@@ -2,9 +2,9 @@ name: Rust
 
 on:
   push:
-    branches: [ "main" ]
+    branches: [ "main", "action-test"]
   pull_request:
-    branches: [ "main" ]
+    branches: [ "main", "action-test"]
 
 permissions:
   contents: read
