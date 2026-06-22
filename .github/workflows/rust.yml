@@ -31,15 +31,64 @@ jobs:
       run: cargo build --verbose
     - name: build-docs
       run: cargo own-docs
-    - name: Create Google verification file
+    - name: Add other files
       run: |
         cat > target/doc/google7aded6cb11498735.html <<EOF
         ${{ secrets.GOOGLE_VERIFICATION_TOKEN }}
         EOF
-    - name: Upload artifact
+    - name: Sitemap.xml
+      run: |
+        BASE_URL="https://cambo14.github.io/langviewer"
+        OUT_DIR="target/doc/langviewer"
+
+        cat > sitemap.xml <<EOF
+        <?xml version="1.0" encoding="UTF-8"?>
+        <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+        EOF
+
+        find "$OUT_DIR" -type f -name "*.html" | while read file; do
+
+        rel="${file#$OUT_DIR}"
+
+        if [ "$rel" = "/index.html" ]; then
+          url="$BASE_URL/"
+        elif [[ "$rel" == */index.html ]]; then
+          url="$BASE_URL${rel%index.html}"
+        else
+          url="$BASE_URL$rel"
+        fi
+
+        lastmod=$(date -Iseconds -r "$file")
+
+        cat >> sitemap.xml <<EOF
+        <url>
+          <loc>$url</loc>
+          <lastmod>$lastmod</lastmod>
+        </url>
+        EOF
+
+        done
+
+        echo "</urlset>" >> sitemap.xml
+
+        cp sitemap.xml "$OUT_DIR/"
+
+    - name: Robots
+      run: |
+        cat > robots.txt <<EOF
+        User-agent: *
+        Allow: /
+        
+        Sitemap: https://cambo14.github.io/langviewer/sitemap.xml
+        EOF
+        
+        cp robots.txt target/doc/langviewer/
+        
+        
+    - name: Upload artifact 1
       uses: actions/upload-pages-artifact@v3
       with:
-          path: 'target/doc/'
+          path: 'target/doc/langviewer'
 
     - name: Deploy to GitHub Pages
       id: deployment
