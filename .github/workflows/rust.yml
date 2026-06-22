@@ -33,7 +33,7 @@ jobs:
       run: cargo build --verbose
     - name: build-docs
       env:
-        RUSTDOCFLAGS: --extern-html-root-url https://cambo14.github.io/langviewer/
+        RUSTDOCFLAGS: --extern-html-root-url langviewer=https://cambo14.github.io/langviewer/
       run: cargo own-docs
     - name: Prepare pages artifact
       run: |

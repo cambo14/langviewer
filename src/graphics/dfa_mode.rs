@@ -159,6 +159,10 @@ impl canvas::Program<Message> for DfaWindow {
                None// TODO
             }
          }
+         canvas::Event::Mouse(mouse::Event::ButtonReleased(mouse::Button::Right)) => {
+            *interaction = Interaction::None;
+            None
+         }
          _ => None
       }
 }
