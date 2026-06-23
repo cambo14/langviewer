@@ -51,43 +51,65 @@ macro_rules! right {
     };
 }
 
+/// A label position in the spatial index, mapping coordinates to a connection index.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct LabelPoint {
+    /// The position of the transition label on the canvas
+    pub pos: iced::Point<f32>,
+    /// The index of the connection in [`DfaInstance::connections`](super::dfa_mode::DfaInstance::connections)
+    pub conn_index: usize,
+}
+
+impl rstar::Point for LabelPoint {
+    type Scalar = f32;
+    const DIMENSIONS: usize = 2;
+
+    fn generate(mut generator: impl FnMut(usize) -> Self::Scalar) -> Self {
+        LabelPoint {
+            pos: iced::Point::new(generator(0), generator(1)),
+            conn_index: 0,
+        }
+    }
+
+    fn nth(&self, index: usize) -> Self::Scalar {
+        match index {
+            0 => self.pos.x,
+            1 => self.pos.y,
+            _ => unreachable!(),
+        }
+    }
+
+    fn nth_mut(&mut self, index: usize) -> &mut Self::Scalar {
+        match index {
+            0 => &mut self.pos.x,
+            1 => &mut self.pos.y,
+            _ => unreachable!(),
+        }
+    }
+}
+
 /// Represents a connection between two nodes in the DFA with a symbol for transition.
 #[derive(Debug, Clone)]
 pub struct Connection {
     /// The starting point and index of the node
     pub start: (iced::Point<f32>, usize),
     /// The ending point and index of the node
-    pub end: (iced::Point<f32>, usize), 
+    pub end: (iced::Point<f32>, usize),
     /// The symbol associated with the transition
-    pub symbol: char, 
-    /// The label location
+    pub symbol: char,
+    /// The label location, kept in sync with the label-points RTree
     pub label_loc: iced::Point<f32>,
-    /// The index of the connection in the RTree, used for efficient updates when moving nodes
-    pub index: Option<usize> = None,
     /// The path object representing the curve of the connection, used for rendering on the canvas
     pub path: Option<canvas::Path> = None,
 }
 
-
 impl Connection {
     /// Creates a new connection with the given parameters
-    /// 
-    /// # Arguments
-    /// * `start` - The starting point and index of the node
-    /// * `end` - The ending point and index of the node
-    /// * `symbol` - The symbol associated with the transition
-    /// * `label_loc` - The location of the label for the connection
-    /// * `index` - The index of the connection in the RTree
-    /// * `path` - The path object representing the curve of the connection, used for rendering on the canvas
-    /// 
-    /// # Returns
-    /// A new connection with the given parameters
     pub fn new(
         start: (iced::Point<f32>, usize),
         end: (iced::Point<f32>, usize),
         symbol: char,
         label_loc: iced::Point<f32>,
-        index: Option<usize>,
         path: Option<canvas::Path>,
     ) -> Self {
         Connection {
@@ -95,39 +117,7 @@ impl Connection {
             end,
             symbol,
             label_loc,
-            index,
             path,
-        }
-    }
-}
-
-impl rstar::Point for Connection {
-    type Scalar = f32;
-
-    fn generate(mut generator: impl FnMut(usize) -> Self::Scalar) -> Self {
-        Connection {
-            start: (iced::Point::new(0.0, 0.0), 0),
-            end: (iced::Point::new(0.0, 0.0), 0),
-            symbol: '\0',
-            label_loc: iced::Point::new(generator(0), generator(1)),
-            ..
-        }
-    }
-    const DIMENSIONS: usize = 2;
-
-    fn nth(&self, index: usize) -> Self::Scalar {
-        match index {
-            0 => self.label_loc.x,
-            1 => self.label_loc.y,
-            _ => unreachable!()
-        }
-    }
-
-    fn nth_mut(&mut self, index: usize) -> &mut Self::Scalar {
-        match index {
-            0 => &mut self.label_loc.x,
-            1 => &mut self.label_loc.y,
-            _ => unreachable!()
         }
     }
 }
@@ -147,31 +137,29 @@ impl Hash for Connection {
     }
 }
 
-/// Generates the graphical component for an arrow representing the connection at `conn_idx`
-/// 
-/// # Arguments
-/// * `conn_idx` - The index of the connection for which to compute the arrow
-/// * `parallel` - A slice of indices of connections that are parallel to the connection at `conn_idx` and their direction 
-///   (true for same direction, false for opposite), used to determine how much to offset the curve for this connection from the midpoint between the start and end nodes
-/// * `nodes` - The RTree containing the nodes of the DFA, used for spatial queries to nudge the curve away from nearby nodes
-/// * `conns` - A HashMap of all connections in the DFA, used to retrieve the details of the connection at `conn_idx` and its parallel connections
-/// 
+/// Generates the graphical component for an arrow representing the connection at `conn_index`.
+///
 /// # Returns
-/// A tuple containing the graphical objects for the transition symbol and the path of the arrow to be drawn on the canvas
-pub fn compute_arrow(conn: &Connection,
-    parallel: &Vec<&Connection>, nodes: &RTree<Node>, conns: &RTree<Connection>) -> (iced::Point, canvas::Path)
-{
-    let conn = conns.nearest_neighbor(rstar::Point::generate(
-        |i| if i == 0 { conn.label_loc.x } else if i == 1 { conn.label_loc.y } else { 0.0 }
-    )).unwrap();
-    let midpoint: iced::Point<f32> = iced::Point::new((conn.start.0.x + conn.end.0.x) / 2.0,
-        (conn.start.0.y + conn.end.0.y) / 2.0);
+/// A tuple of the label position and the path of the arrow to be drawn on the canvas.
+pub fn compute_arrow(
+    conn: &Connection,
+    conn_index: usize,
+    parallel_indices: &[usize],
+    nodes: &RTree<Node>,
+) -> (iced::Point, canvas::Path) {
+    let midpoint: iced::Point<f32> = iced::Point::new(
+        (conn.start.0.x + conn.end.0.x) / 2.0,
+        (conn.start.0.y + conn.end.0.y) / 2.0,
+    );
     let edge_vec = conn.end.0 - conn.start.0;
     let norm = (edge_vec.x.powi(2) + edge_vec.y.powi(2)).sqrt();
     let perp = iced::Vector::new(-edge_vec.y / norm, edge_vec.x / norm);
 
-    let ind = parallel.iter().position(|&idx| idx.index.unwrap() == conn.index.unwrap_or(0)).unwrap();
-    let n = parallel.len();
+    let ind = parallel_indices
+        .iter()
+        .position(|&i| i == conn_index)
+        .unwrap();
+    let n = parallel_indices.len();
 
     let edge_rank = ind as f32 - (n as f32 - 1.0) / 2.0;
     let offset = edge_rank * PARALLEL_OFFSET;
