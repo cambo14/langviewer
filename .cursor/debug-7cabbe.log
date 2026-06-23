@@ -1,0 +1,8 @@
+{"sessionId":"7cabbe","hypothesisId":"A","location":"dfa_mode.rs:keyboard","message":"key pressed","data":{"key":"Named(Delete)","interaction":"EditCon { index: 0 }"},"timestamp":1782197598633}
+{"sessionId":"7cabbe","hypothesisId":"B","location":"dfa_mode.rs:delete-key","message":"publishing DeleteCon","data":{"index":0},"timestamp":1782197598633}
+{"sessionId":"7cabbe","hypothesisId":"C","location":"dfa_mode.rs:remove_connection","message":"removing connection","data":{"index":0,"before_len":1},"timestamp":1782197598633}
+{"sessionId":"7cabbe","hypothesisId":"C","location":"dfa_mode.rs:remove_connection","message":"connection removed","data":{"after_len":0},"timestamp":1782197598633}
+{"sessionId":"7cabbe","hypothesisId":"A","location":"dfa_mode.rs:keyboard","message":"key pressed","data":{"key":"Named(Delete)","interaction":"EditCon { index: 0 }"},"timestamp":1782197608183}
+{"sessionId":"7cabbe","hypothesisId":"B","location":"dfa_mode.rs:delete-key","message":"publishing DeleteCon","data":{"index":0},"timestamp":1782197608183}
+{"sessionId":"7cabbe","hypothesisId":"C","location":"dfa_mode.rs:remove_connection","message":"removing connection","data":{"index":0,"before_len":2},"timestamp":1782197608183}
+{"sessionId":"7cabbe","hypothesisId":"C","location":"dfa_mode.rs:remove_connection","message":"connection removed","data":{"after_len":1},"timestamp":1782197608183}

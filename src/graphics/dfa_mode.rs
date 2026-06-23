@@ -17,7 +17,7 @@
 use iced::mouse::{self};
 use iced::widget::text::LineHeight;
 use iced::widget::{canvas};
-use iced::{Color, Rectangle, Renderer, Theme};
+use iced::{Color, Rectangle, Renderer, Theme, keyboard, keyboard::key};
 use rstar::{Point, RTree};
 use crate::graphics::connection;
 
@@ -42,6 +42,11 @@ pub enum Message{
    /// Edit a given connection
    EditCon {
       /// The index of the connection to edit
+      index: usize
+   },
+   /// Delete the connection at the given index
+   DeleteCon {
+      /// The index of the connection to delete
       index: usize
    },
 
@@ -183,6 +188,16 @@ impl canvas::Program<Message> for DfaWindow {
                None
             }
          }
+         canvas::Event::Keyboard(keyboard::Event::KeyPressed { key: pressed_key, .. }) => {
+            if *pressed_key == keyboard::Key::Named(key::Named::Delete)
+               && let Interaction::EditCon { index } = *interaction
+            {
+               *interaction = Interaction::None;
+               Some(canvas::Action::publish(Message::DeleteCon { index }).and_capture())
+            } else {
+               None
+            }
+         }
          _ => None
       }
    }
@@ -200,6 +215,42 @@ impl DfaWindow {
    }
 }
 impl DfaInstance {
+
+   /// Recompute arrow paths and label positions for all connections.
+   fn recompute_connection_paths(&mut self) {
+      let conn_snap: Vec<_> = self.connections.clone();
+      let conn_size = self.connections.len();
+      let mut paths: Vec<(usize, (iced::Point, canvas::Path))> = Vec::with_capacity(conn_size);
+      for i in 0..conn_size {
+         let conn = &conn_snap[i];
+         let parallel_indices: Vec<usize> = conn_snap
+            .iter()
+            .enumerate()
+            .filter(|(_, e)| {
+               (e.start.1 == conn.start.1 && e.end.1 == conn.end.1)
+                  || (e.start.1 == conn.end.1 && e.end.1 == conn.start.1)
+            })
+            .map(|(j, _)| j)
+            .collect();
+         paths.push((i, compute_arrow(conn, i, &parallel_indices, &self.nodes)));
+      }
+      for (i, path) in paths {
+         let conn = &mut self.connections[i];
+         conn.label_loc = path.0;
+         conn.path = Some(path.1);
+      }
+   }
+
+   /// Remove the connection at `index`, updating paths and spatial indexes.
+   fn remove_connection(&mut self, index: usize) {
+      if index >= self.connections.len() {
+         return;
+      }
+      self.connections.remove(index);
+      self.conn_edit = None;
+      self.recompute_connection_paths();
+      self.rebuild_label_points();
+   }
 
    /// Rebuild the label-point spatial index from current connection label positions.
    fn rebuild_label_points(&mut self) {
@@ -237,28 +288,11 @@ impl DfaInstance {
                iced::Point::new((start.x + end.x) / 2.0, (start.y + end.y) / 2.0),
                None,
             ));
-            let conn_snap: Vec<_> = self.connections.clone();
-            let conn_size = self.connections.len();
-            let mut paths: Vec<(usize, (iced::Point, canvas::Path))> = Vec::with_capacity(conn_size);
-            for i in 0..conn_size {
-               let conn = &conn_snap[i];
-               let parallel_indices: Vec<usize> = conn_snap
-                  .iter()
-                  .enumerate()
-                  .filter(|(_, e)| {
-                     (e.start.1 == conn.start.1 && e.end.1 == conn.end.1)
-                        || (e.start.1 == conn.end.1 && e.end.1 == conn.start.1)
-                  })
-                  .map(|(j, _)| j)
-                  .collect();
-               paths.push((i, compute_arrow(conn, i, &parallel_indices, &self.nodes)));
-            }
-            for (i, path) in paths {
-               let conn = &mut self.connections[i];
-               conn.label_loc = path.0;
-               conn.path = Some(path.1);
-            }
+            self.recompute_connection_paths();
             self.rebuild_label_points();
+         }
+         Message::DeleteCon { index } => {
+            self.remove_connection(index);
          }
          Message::EditCon { index } => {
             if let Some(conn) = self.connections.get_mut(index) && self.conn_edit.is_none() {
