@@ -24,7 +24,6 @@ mod connection;
 use iced::Element;
 use iced::widget::{
    button, center_x, column, container, operation, row, tooltip};
-use rstar::RTree;
 
 /// An identifier for the main window of the application
 const WINDOW: &str = "window";
@@ -48,7 +47,7 @@ enum EditorMode {
    /// A DFA is currently being edited
    Dfa {
       /// The window containing the DFA editor
-      dfa_win: Box<dfa_mode::DfaWindow>
+      dfa_win: Box<dfa_mode::DfaWindow>,
    },
    /// An empty canvas with no editor active
    Empty,
@@ -61,12 +60,12 @@ pub fn initialise() -> iced::Result {
 }
 
 /// The graphical instance of the application
-pub struct GraphicsInstance{
+pub struct GraphicsInstance {
    /// What is currently being displayed for the user to edit, such as a DFA editor or an empty canvas
    mode: EditorMode,
 }
 
-impl GraphicsInstance{
+impl GraphicsInstance {
 
    /// Generate a new graphical instance with an empty editor and focuses on it
    fn new() -> (Self, iced::Task<Message>){
@@ -94,8 +93,11 @@ impl GraphicsInstance{
       match message{
          Message::DfaMode => {
             log::debug!("DFA Creation mode entered");
-            self.mode = EditorMode::Dfa { dfa_win: Box::new(dfa_mode::DfaWindow { dfa: dfa_mode::DfaInstance { 
-               nodes: RTree::new(), edges: RTree::new(), } }) };
+            self.mode = EditorMode::Dfa {
+               dfa_win: Box::new(dfa_mode::DfaWindow {
+                  dfa: dfa_mode::DfaInstance::default(),
+               }),
+            };
          }
          Message::DfaMessage(dfa_msg) => {
             if let EditorMode::Dfa {dfa_win} = & mut self.mode {

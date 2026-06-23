@@ -58,19 +58,21 @@ pub enum Message{
 
 /// The window in which to render the DFA editor
 #[derive(Debug)]
-pub struct DfaWindow{
+pub struct DfaWindow {
    /// The current state of the DFA being edited, including its nodes and connections
    pub dfa: DfaInstance,
 }
 
 /// A single DFA containing nodes, edges, and an index 
 /// for quick lookup of edges based on their start and end nodes and symbol
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct DfaInstance {
    /// The nodes in the DFA, stored in an RTree for efficient spatial queries
    pub nodes: RTree<Node>,
    /// The edges of the DFA
    pub edges: RTree<Connection>,
+   /// Index of the connection being edited, if any
+   conn_edit: Option<usize>,
 }
 
 impl canvas::Program<Message> for DfaWindow {
@@ -144,7 +146,6 @@ impl canvas::Program<Message> for DfaWindow {
             if let Interaction::AddCon { init: init_node } = *interaction {
                if let Some(end_node) = node {
                   
-                  // Find the original start node in the RTree to get a &'a Node reference
                   let start_node = self.dfa.nodes.locate_within_distance(
                      Node { pos: init_node.pos, index: None, is_accepting: false, is_initial: false },
                      0.1).last().unwrap_or(end_node);
@@ -168,6 +169,7 @@ impl canvas::Program<Message> for DfaWindow {
          canvas::Event::Mouse(mouse::Event::ButtonReleased(mouse::Button::Right)) => {
             if let Some((conn, dist)) = self.dfa.edges.nearest_neighbor_with_distance_2(
                Connection::generate(|a| if a==1 {bound_pos.y} else {bound_pos.x}), ) && dist < NODE_SIZE.pow(2) as f32
+               && matches!(interaction, Interaction::None)
             {
                
                let message = {*interaction = Interaction::EditCon { index: conn.index.unwrap_or(0) };
@@ -180,7 +182,7 @@ impl canvas::Program<Message> for DfaWindow {
          }
          _ => None
       }
-}
+   }
    
    type State = Interaction;
    
@@ -249,7 +251,8 @@ impl DfaInstance {
          }
          Message::EditCon { index } => {
             if let Some(conn) = self.edges.iter_mut().find(|c| c.index == Some(index)) {
-               conn.edit = true;
+               self.conn_edit = Some(index);
+               conn.symbol = '\0';
             }
          }
       }

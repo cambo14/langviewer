@@ -66,8 +66,6 @@ pub struct Connection {
     pub index: Option<usize> = None,
     /// The path object representing the curve of the connection, used for rendering on the canvas
     pub path: Option<canvas::Path> = None,
-    /// A flag indicating whether the connection is currently being edited
-    pub edit: bool = false,
 }
 
 
@@ -99,7 +97,6 @@ impl Connection {
             label_loc,
             index,
             path,
-            edit: false,
         }
     }
 }
@@ -235,7 +232,7 @@ pub fn compute_arrow(conn: &Connection,
 /// Generates the graphical text representing the connection, displaying
 /// the transition symbol at the label location of the connection
 pub fn connection_text(conn: &Connection) -> canvas::Text {
-    canvas::Text { content: if conn.edit { "\0".to_string() } else { conn.symbol.to_string() }, position: conn.label_loc,
+    canvas::Text { content: conn.symbol.to_string(), position: conn.label_loc,
         color: Color::BLACK, size: SYMBOL_SIZE, font: iced::Font::DEFAULT,
         align_x: iced::widget::text::Alignment::Center, align_y: iced::alignment::Vertical::Center,
         line_height: LineHeight::Relative(1.0), max_width: 5.0,
