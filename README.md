@@ -4,7 +4,10 @@ A tool to examine languages and convert them between representations (CFG, DFA, 
 Langviewer is currently very early in implementation with only a full DFA implementation currently being worked on with other forms to follow
 
 # Documentation
-Documentation for LangViewers source code can be viewed [here](https://cambo14.github.io/)
+Documentation for LangViewers source code can be viewed [here](https://cambo14.github.io/langviewer/)
 
 # Licensing
 Langview is licensed under the [GNU AGPLv3](./LICENCE)
+
+# Contributing
+Information about contributing to langviewer can be found in [CONTRIBUTING.md](./CONTRIBUTING.md)
