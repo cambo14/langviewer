@@ -1,4 +1,0 @@
-{"sessionId":"a35905","hypothesisId":"H2","location":"dfa_mode.rs:EditCon-handler","message":"EditCon message","data":{"index":0,"conn_edit":None,"accepted":true},"timestamp":1782363743037}
-{"sessionId":"a35905","hypothesisId":"H2","location":"dfa_mode.rs:keyboard","message":"key in edit context","data":{"interaction":"EditCon { index: 0 }","conn_edit":Some(0),"key":"Character("2")","modifiers":"Modifiers(0x0)","text":Some("2")},"timestamp":1782363745888}
-{"sessionId":"a35905","hypothesisId":"H2","location":"dfa_mode.rs:EditCon-handler","message":"EditCon message","data":{"index":0,"conn_edit":None,"accepted":true},"timestamp":1782363748664}
-{"sessionId":"a35905","hypothesisId":"H2","location":"dfa_mode.rs:keyboard","message":"key in edit context","data":{"interaction":"EditCon { index: 0 }","conn_edit":Some(0),"key":"Character("s")","modifiers":"Modifiers(0x0)","text":Some("s")},"timestamp":1782363752337}
