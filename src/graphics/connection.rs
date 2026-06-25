@@ -137,6 +137,20 @@ impl Hash for Connection {
     }
 }
 
+/// Returns whether assigning `symbol` to the connection at `index` would duplicate
+/// an existing same-direction transition.
+pub fn would_duplicate_symbol(connections: &[Connection], index: usize, symbol: char) -> bool {
+    let Some(conn) = connections.get(index) else {
+        return false;
+    };
+    connections.iter().enumerate().any(|(i, other)| {
+        i != index
+            && other.start.1 == conn.start.1
+            && other.end.1 == conn.end.1
+            && other.symbol == symbol
+    })
+}
+
 /// Generates the graphical component for an arrow representing the connection at `conn_index`.
 ///
 /// # Returns
@@ -220,7 +234,12 @@ pub fn compute_arrow(
 /// Generates the graphical text representing the connection, displaying
 /// the transition symbol at the label location of the connection
 pub fn connection_text(conn: &Connection) -> canvas::Text {
-    canvas::Text { content: conn.symbol.to_string(), position: conn.label_loc,
+    let content = if conn.symbol == '\0' {
+        String::new()
+    } else {
+        conn.symbol.to_string()
+    };
+    canvas::Text { content, position: conn.label_loc,
         color: Color::BLACK, size: SYMBOL_SIZE, font: iced::Font::DEFAULT,
         align_x: iced::widget::text::Alignment::Center, align_y: iced::alignment::Vertical::Center,
         line_height: LineHeight::Relative(1.0), max_width: 5.0,

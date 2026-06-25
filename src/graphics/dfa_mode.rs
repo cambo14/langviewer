@@ -49,6 +49,18 @@ pub enum Message{
       /// The index of the connection to delete
       index: usize
    },
+   /// Set the symbol of a connection being edited
+   SetConSymbol {
+      /// The index of the connection to update
+      index: usize,
+      /// The new transition symbol
+      symbol: char
+   },
+   /// Cancel editing a connection, restoring its previous symbol
+   CancelConEdit {
+      /// The index of the connection being edited
+      index: usize
+   },
 
    /// Add a connection between two nodes with for the transition associated with given symbol
    AddCon {
@@ -79,6 +91,31 @@ pub struct DfaInstance {
    pub label_points: RTree<LabelPoint>,
    /// Index of the connection being edited, if any
    conn_edit: Option<usize>,
+   /// Symbol of the connection before editing began
+   conn_edit_prev: Option<char>,
+}
+
+/// Extract a single printable transition symbol from a key press, if any.
+fn symbol_from_keypress(
+   modified_key: &keyboard::Key,
+   text: Option<&str>,
+   modifiers: keyboard::Modifiers,
+) -> Option<char> {
+   if modifiers.control() || modifiers.logo() {
+      return None;
+   }
+
+   let candidate = text.or_else(|| match modified_key.as_ref() {
+      keyboard::Key::Character(s) => Some(s),
+      _ => None,
+   })?;
+
+   let mut chars = candidate.chars();
+   let c = chars.next()?;
+   if chars.next().is_some() || c.is_whitespace() || c.is_control() {
+      return None;
+   }
+   Some(c)
 }
 
 impl canvas::Program<Message> for DfaWindow {
@@ -188,12 +225,39 @@ impl canvas::Program<Message> for DfaWindow {
                None
             }
          }
-         canvas::Event::Keyboard(keyboard::Event::KeyPressed { key: pressed_key, .. }) => {
-            if *pressed_key == keyboard::Key::Named(key::Named::Delete)
-               && let Interaction::EditCon { index } = *interaction
-            {
-               *interaction = Interaction::None;
-               Some(canvas::Action::publish(Message::DeleteCon { index }).and_capture())
+         canvas::Event::Keyboard(keyboard::Event::KeyPressed {
+            key: pressed_key,
+            modified_key,
+            text,
+            modifiers,
+            ..
+         }) => {
+            if let Interaction::EditCon { index } = *interaction {
+               match pressed_key.as_ref() {
+                  keyboard::Key::Named(key::Named::Delete) => {
+                     *interaction = Interaction::None;
+                     Some(canvas::Action::publish(Message::DeleteCon { index }).and_capture())
+                  }
+                  keyboard::Key::Named(key::Named::Escape) => {
+                     *interaction = Interaction::None;
+                     Some(canvas::Action::publish(Message::CancelConEdit { index }).and_capture())
+                  }
+                  _ => {
+                     let Some(c) = symbol_from_keypress(
+                        &modified_key,
+                        text.as_ref().map(|s| s.as_str()),
+                        *modifiers,
+                     ) else {
+                        return None;
+                     };
+                     if connection::would_duplicate_symbol(&self.dfa.connections, index, c) {
+                        log::warn!("duplicate transition symbol");
+                        return None;
+                     }
+                     *interaction = Interaction::None;
+                     Some(canvas::Action::publish(Message::SetConSymbol { index, symbol: c }).and_capture())
+                  }
+               }
             } else {
                None
             }
@@ -248,6 +312,7 @@ impl DfaInstance {
       }
       self.connections.remove(index);
       self.conn_edit = None;
+      self.conn_edit_prev = None;
       self.recompute_connection_paths();
       self.rebuild_label_points();
    }
@@ -296,9 +361,35 @@ impl DfaInstance {
          }
          Message::EditCon { index } => {
             if let Some(conn) = self.connections.get_mut(index) && self.conn_edit.is_none() {
-               self.conn_edit = Some(index);
+               self.conn_edit_prev = Some(conn.symbol);
                conn.symbol = '\0';
+               self.conn_edit = Some(index);
             }
+         }
+         Message::SetConSymbol { index, symbol } => {
+            if self.conn_edit != Some(index) {
+               return;
+            }
+            if connection::would_duplicate_symbol(&self.connections, index, symbol) {
+               log::warn!("duplicate transition symbol");
+               return;
+            }
+            if let Some(conn) = self.connections.get_mut(index) {
+               conn.symbol = symbol;
+            }
+            self.conn_edit = None;
+            self.conn_edit_prev = None;
+         }
+         Message::CancelConEdit { index } => {
+            if self.conn_edit != Some(index) {
+               return;
+            }
+            if let Some(prev) = self.conn_edit_prev.take()
+               && let Some(conn) = self.connections.get_mut(index)
+            {
+               conn.symbol = prev;
+            }
+            self.conn_edit = None;
          }
       }
    }
