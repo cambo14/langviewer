@@ -17,11 +17,11 @@
 use iced::mouse::{self};
 use iced::widget::text::LineHeight;
 use iced::widget::{canvas};
-use iced::{Color, Rectangle, Renderer, Theme};
+use iced::{Color, Rectangle, Renderer, Theme, keyboard, keyboard::key};
 use rstar::{Point, RTree};
 use crate::graphics::connection;
 
-use super::connection::{Connection, compute_arrow};
+use super::connection::{Connection, LabelPoint, compute_arrow};
 
 /// The radius of a DFA node when drawn on the canvas.
 pub const NODE_SIZE: i32 = 2 << 4;
@@ -39,6 +39,28 @@ pub enum Message{
       /// The position to add the node at
       pos: iced::Point<f32>
    },
+   /// Edit a given connection
+   EditCon {
+      /// The index of the connection to edit
+      index: usize
+   },
+   /// Delete the connection at the given index
+   DeleteCon {
+      /// The index of the connection to delete
+      index: usize
+   },
+   /// Set the symbol of a connection being edited
+   SetConSymbol {
+      /// The index of the connection to update
+      index: usize,
+      /// The new transition symbol
+      symbol: char
+   },
+   /// Cancel editing a connection, restoring its previous symbol
+   CancelConEdit {
+      /// The index of the connection being edited
+      index: usize
+   },
 
    /// Add a connection between two nodes with for the transition associated with given symbol
    AddCon {
@@ -53,19 +75,47 @@ pub enum Message{
 
 /// The window in which to render the DFA editor
 #[derive(Debug)]
-pub struct DfaWindow{
+pub struct DfaWindow {
    /// The current state of the DFA being edited, including its nodes and connections
    pub dfa: DfaInstance,
 }
 
-/// A single DFA containing nodes, edges, and an index 
-/// for quick lookup of edges based on their start and end nodes and symbol
-#[derive(Debug)]
+/// A single DFA containing nodes, connections, and a spatial index of label positions
+#[derive(Debug, Default)]
 pub struct DfaInstance {
    /// The nodes in the DFA, stored in an RTree for efficient spatial queries
    pub nodes: RTree<Node>,
-   /// The edges of the DFA
-   pub edges: RTree<Connection>,
+   /// The connections of the DFA, indexed by vec position
+   pub connections: Vec<Connection>,
+   /// Label positions for spatial hit-testing, mapping coordinates to connection indices
+   pub label_points: RTree<LabelPoint>,
+   /// Index of the connection being edited, if any
+   conn_edit: Option<usize>,
+   /// Symbol of the connection before editing began
+   conn_edit_prev: Option<char>,
+}
+
+/// Extract a single printable transition symbol from a key press, if any.
+fn symbol_from_keypress(
+   modified_key: &keyboard::Key,
+   text: Option<&str>,
+   modifiers: keyboard::Modifiers,
+) -> Option<char> {
+   if modifiers.control() || modifiers.logo() {
+      return None;
+   }
+
+   let candidate = text.or_else(|| match modified_key.as_ref() {
+      keyboard::Key::Character(s) => Some(s),
+      _ => None,
+   })?;
+
+   let mut chars = candidate.chars();
+   let c = chars.next()?;
+   if chars.next().is_some() || c.is_whitespace() || c.is_control() {
+      return None;
+   }
+   Some(c)
 }
 
 impl canvas::Program<Message> for DfaWindow {
@@ -78,7 +128,7 @@ impl canvas::Program<Message> for DfaWindow {
             canvas::Stroke::default().with_color(Color::BLACK).with_width(2.0).with_line_join(canvas::LineJoin::Round));
          frame.fill_text(text);
       }
-      for connection in self.dfa.edges.iter() {
+      for connection in &self.dfa.connections {
          if let Some(path) = &connection.path {
             frame.stroke(path,
                canvas::Stroke::default().with_color(Color::BLACK).with_width(2.0).with_line_join(canvas::LineJoin::Round));
@@ -103,6 +153,7 @@ impl canvas::Program<Message> for DfaWindow {
       let (exists, pos) = (cursor.position().is_some(),
          cursor.position().unwrap_or_default());
       let act_pos = iced::Point::new(pos.x, pos.y);
+      let bound_pos = iced::Point::new(pos.x - bounds.x, pos.y - bounds.y);
       let node: Option<&Node> = self.dfa.nodes.locate_within_distance(
          Node { pos: act_pos, .. },
          (NODE_SIZE.pow(2) << 1) as f32).next();
@@ -127,7 +178,7 @@ impl canvas::Program<Message> for DfaWindow {
                      return None;
                   }
                   *interaction = Interaction::None;
-                  Some(Message::AddNode {pos: iced::Point::new(pos.x - bounds.x, pos.y - bounds.y)})
+                  Some(Message::AddNode {pos: bound_pos})
             };
             Some(message.map(canvas::Action::publish)
             .unwrap_or(canvas::Action::request_redraw()).and_capture(),)
@@ -138,7 +189,6 @@ impl canvas::Program<Message> for DfaWindow {
             if let Interaction::AddCon { init: init_node } = *interaction {
                if let Some(end_node) = node {
                   
-                  // Find the original start node in the RTree to get a &'a Node reference
                   let start_node = self.dfa.nodes.locate_within_distance(
                      Node { pos: init_node.pos, index: None, is_accepting: false, is_initial: false },
                      0.1).last().unwrap_or(end_node);
@@ -146,7 +196,7 @@ impl canvas::Program<Message> for DfaWindow {
                   let message = {
                      *interaction = Interaction::None;
                      Some(Message::AddCon { start: start_node.pos, end: end_node.pos,
-                        symbol: self.dfa.edges.size().to_string().chars().next().unwrap_or('?') }) //TODO: have a better way to determine symbol
+                        symbol: self.dfa.connections.len().to_string().chars().next().unwrap_or('?') }) //TODO: have a better way to determine symbol
                   };
                   Some(message.map(canvas::Action::publish)
                      .unwrap_or(canvas::Action::request_redraw()).and_capture(),)
@@ -159,9 +209,60 @@ impl canvas::Program<Message> for DfaWindow {
                None// TODO
             }
          }
+         canvas::Event::Mouse(mouse::Event::ButtonReleased(mouse::Button::Right)) => {
+            if let Some((label_pt, dist)) = self.dfa.label_points.nearest_neighbor_with_distance_2(
+               LabelPoint::generate(|a| if a == 1 { bound_pos.y } else { bound_pos.x }),
+            ) && dist < NODE_SIZE.pow(2) as f32
+               && matches!(interaction, Interaction::None)
+            {
+               let message = {
+                  *interaction = Interaction::EditCon { index: label_pt.conn_index };
+                  Some(Message::EditCon { index: label_pt.conn_index })
+               };
+               Some(message.map(canvas::Action::publish).unwrap_or(canvas::Action::request_redraw()).and_capture(),)
+            } else {
+               *interaction = Interaction::None;
+               None
+            }
+         }
+         canvas::Event::Keyboard(keyboard::Event::KeyPressed {
+            key: pressed_key,
+            modified_key,
+            text,
+            modifiers,
+            ..
+         }) => {
+            if let Interaction::EditCon { index } = *interaction {
+               match pressed_key.as_ref() {
+                  keyboard::Key::Named(key::Named::Delete) => {
+                     *interaction = Interaction::None;
+                     Some(canvas::Action::publish(Message::DeleteCon { index }).and_capture())
+                  }
+                  keyboard::Key::Named(key::Named::Escape) => {
+                     *interaction = Interaction::None;
+                     Some(canvas::Action::publish(Message::CancelConEdit { index }).and_capture())
+                  }
+                  _ => {
+                     let c = symbol_from_keypress(
+                        modified_key,
+                        text.as_ref().map(|s| s.as_str()),
+                        *modifiers,
+                     )?;
+                     if connection::would_duplicate_symbol(&self.dfa.connections, index, c) {
+                        log::warn!("duplicate transition symbol");
+                        return None;
+                     }
+                     *interaction = Interaction::None;
+                     Some(canvas::Action::publish(Message::SetConSymbol { index, symbol: c }).and_capture())
+                  }
+               }
+            } else {
+               None
+            }
+         }
          _ => None
       }
-}
+   }
    
    type State = Interaction;
    
@@ -176,6 +277,53 @@ impl DfaWindow {
    }
 }
 impl DfaInstance {
+
+   /// Recompute arrow paths and label positions for all connections.
+   fn recompute_connection_paths(&mut self) {
+      let conn_snap: Vec<_> = self.connections.clone();
+      let conn_size = self.connections.len();
+      let mut paths: Vec<(usize, (iced::Point, canvas::Path))> = Vec::with_capacity(conn_size);
+      for i in 0..conn_size {
+         let conn = &conn_snap[i];
+         let parallel_indices: Vec<usize> = conn_snap
+            .iter()
+            .enumerate()
+            .filter(|(_, e)| {
+               (e.start.1 == conn.start.1 && e.end.1 == conn.end.1)
+                  || (e.start.1 == conn.end.1 && e.end.1 == conn.start.1)
+            })
+            .map(|(j, _)| j)
+            .collect();
+         paths.push((i, compute_arrow(conn, i, &parallel_indices, &self.nodes)));
+      }
+      for (i, path) in paths {
+         let conn = &mut self.connections[i];
+         conn.label_loc = path.0;
+         conn.path = Some(path.1);
+      }
+   }
+
+   /// Remove the connection at `index`, updating paths and spatial indexes.
+   fn remove_connection(&mut self, index: usize) {
+      if index >= self.connections.len() {
+         return;
+      }
+      self.connections.remove(index);
+      self.conn_edit = None;
+      self.conn_edit_prev = None;
+      self.recompute_connection_paths();
+      self.rebuild_label_points();
+   }
+
+   /// Rebuild the label-point spatial index from current connection label positions.
+   fn rebuild_label_points(&mut self) {
+      let points: Vec<LabelPoint> = self.connections
+         .iter()
+         .enumerate()
+         .map(|(i, c)| LabelPoint { pos: c.label_loc, conn_index: i })
+         .collect();
+      self.label_points = RTree::bulk_load(points);
+   }
 
    /// Implementation of [`UpdateFn`](trait@iced::application::UpdateFn) for the graphical instance
    /// handling messages and updating the state of the DFA editor accordingly
@@ -196,37 +344,50 @@ impl DfaInstance {
                   start, start_act.is_none(), end, end_act.is_none());
                return;
             }
-            self.edges.insert(Connection {
-               start: (start_act.unwrap().pos, start_act.unwrap().index.unwrap_or(0)),
-               end: (end_act.unwrap().pos, end_act.unwrap().index.unwrap_or(0)),
+            self.connections.push(Connection::new(
+               (start_act.unwrap().pos, start_act.unwrap().index.unwrap_or(0)),
+               (end_act.unwrap().pos, end_act.unwrap().index.unwrap_or(0)),
                symbol,
-               label_loc: iced::Point::new((start.x + end.x) / 2.0, (start.y + end.y) / 2.0),
-               index: Some(self.edges.size()),
-               path: None,
-            });
-            let edge_snap: Vec<_> = self.edges.iter().cloned().collect();
-            let mut parallel: Vec<&Connection> = Vec::with_capacity(self.edges.size());
-            let conn_size = self.edges.size();
-            let mut paths: Vec<(usize, (iced::Point, canvas::Path))> = Vec::with_capacity(conn_size);
-            for i in 0..conn_size {
-               let conn: &Connection = &edge_snap[i];
-               parallel.clear();
-            
-               for edge in edge_snap.iter().filter(
-                  |e| (e.start.1 == conn.start.1 && e.end.1 == conn.end.1) ||
-                  (e.start.1 == conn.end.1 && e.end.1 == conn.start.1))
-               {
-                  parallel.push(edge);
-               }
-               paths.push((i, (compute_arrow(
-                  conn,
-                  &parallel, &self.nodes, &self.edges))));
+               iced::Point::new((start.x + end.x) / 2.0, (start.y + end.y) / 2.0),
+               None,
+            ));
+            self.recompute_connection_paths();
+            self.rebuild_label_points();
+         }
+         Message::DeleteCon { index } => {
+            self.remove_connection(index);
+         }
+         Message::EditCon { index } => {
+            if let Some(conn) = self.connections.get_mut(index) && self.conn_edit.is_none() {
+               self.conn_edit_prev = Some(conn.symbol);
+               conn.symbol = '\0';
+               self.conn_edit = Some(index);
             }
-            for (i, path) in paths{
-               let conn = self.edges.iter_mut().nth(i).unwrap();
-               conn.label_loc = path.0;
-               conn.path = Some(path.1);
+         }
+         Message::SetConSymbol { index, symbol } => {
+            if self.conn_edit != Some(index) {
+               return;
             }
+            if connection::would_duplicate_symbol(&self.connections, index, symbol) {
+               log::warn!("duplicate transition symbol");
+               return;
+            }
+            if let Some(conn) = self.connections.get_mut(index) {
+               conn.symbol = symbol;
+            }
+            self.conn_edit = None;
+            self.conn_edit_prev = None;
+         }
+         Message::CancelConEdit { index } => {
+            if self.conn_edit != Some(index) {
+               return;
+            }
+            if let Some(prev) = self.conn_edit_prev.take()
+               && let Some(conn) = self.connections.get_mut(index)
+            {
+               conn.symbol = prev;
+            }
+            self.conn_edit = None;
          }
       }
    }
@@ -308,5 +469,11 @@ pub enum Interaction {
    AddCon{
       /// The starting point of the connection
       init: Node
+   },
+
+   /// User is editing a connection, with the connection being edited stored in `conn`
+   EditCon{
+      /// The index of the connection to edit
+      index: usize
    },
 }
