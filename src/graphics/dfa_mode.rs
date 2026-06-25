@@ -243,13 +243,11 @@ impl canvas::Program<Message> for DfaWindow {
                      Some(canvas::Action::publish(Message::CancelConEdit { index }).and_capture())
                   }
                   _ => {
-                     let Some(c) = symbol_from_keypress(
-                        &modified_key,
+                     let c = symbol_from_keypress(
+                        modified_key,
                         text.as_ref().map(|s| s.as_str()),
                         *modifiers,
-                     ) else {
-                        return None;
-                     };
+                     )?;
                      if connection::would_duplicate_symbol(&self.dfa.connections, index, c) {
                         log::warn!("duplicate transition symbol");
                         return None;
