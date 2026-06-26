@@ -20,7 +20,7 @@ use rstar::{AABB, RTree};
 
 use crate::graphics::{dfa_mode::NODE_SIZE};
 
-use super::dfa_mode::Node;
+use super::dfa_mode::NodePoint;
 
 /// The font size for the transition symbol text on the connection arrows.
 const SYMBOL_SIZE: iced::Pixels = iced::Pixels(16.0);
@@ -159,7 +159,7 @@ pub fn compute_arrow(
     conn: &Connection,
     conn_index: usize,
     parallel_indices: &[usize],
-    nodes: &RTree<Node>,
+    nodes: &RTree<NodePoint>,
 ) -> (iced::Point, canvas::Path) {
     let midpoint: iced::Point<f32> = iced::Point::new(
         (conn.start.0.x + conn.end.0.x) / 2.0,
@@ -185,12 +185,12 @@ pub fn compute_arrow(
     };
 
     let bbox = AABB::from_center(
-        Node { pos: midpoint, .. },
+        NodePoint { pos: midpoint, node_index: 0 },
         norm + (NODE_SIZE << 2) as f32);
     for nearby_node in nodes.locate_in_envelope(bbox) {
         let to_node = nearby_node.pos - cp;
         let dist = (to_node.x.powi(2) + to_node.y.powi(2)).sqrt();
-        if dist < NUDGE_THRESHOLD && nearby_node.index.unwrap() != conn.start.1 && nearby_node.index.unwrap() != conn.end.1 {
+        if dist < NUDGE_THRESHOLD && nearby_node.node_index != conn.start.1 && nearby_node.node_index != conn.end.1 {
             let size = (to_node.x.powi(2) + to_node.y.powi(2)).sqrt();
             let normal = Vector::new(to_node.x / size, to_node.y / size);
             cp -= normal * (NUDGE_THRESHOLD - dist) * 0.5;

@@ -71,6 +71,12 @@ pub enum Message{
       /// The symbol associated with the transition
       symbol: char
    },
+
+   /// Set the node of the DFA with the given index to be accepting
+   AcceptingNode {
+      /// The index of the node to set as accepting
+      index: usize
+   },
 }
 
 /// The window in which to render the DFA editor
@@ -80,11 +86,13 @@ pub struct DfaWindow {
    pub dfa: DfaInstance,
 }
 
-/// A single DFA containing nodes, connections, and a spatial index of label positions
+/// A single DFA containing nodes, connections, and spatial indexes for hit-testing
 #[derive(Debug, Default)]
 pub struct DfaInstance {
-   /// The nodes in the DFA, stored in an RTree for efficient spatial queries
-   pub nodes: RTree<Node>,
+   /// The nodes in the DFA, indexed by vec position
+   pub nodes: Vec<Node>,
+   /// Node positions for spatial hit-testing, mapping coordinates to node indices
+   pub node_points: RTree<NodePoint>,
    /// The connections of the DFA, indexed by vec position
    pub connections: Vec<Connection>,
    /// Label positions for spatial hit-testing, mapping coordinates to connection indices
@@ -121,11 +129,16 @@ fn symbol_from_keypress(
 impl canvas::Program<Message> for DfaWindow {
    fn draw(&self, _state: &Interaction, renderer: &Renderer, _theme: &Theme, bounds: Rectangle, _cursor: mouse::Cursor) -> Vec<canvas::Geometry> {
       let mut frame = canvas::Frame::new(renderer, bounds.size());
-      for node in &self.dfa.nodes {
+      for (i, node) in self.dfa.nodes.iter().enumerate() {
          let circle = canvas::Path::circle(node.pos, NODE_SIZE as f32);
-         let text = get_node_text(node);
+         let text = get_node_text(i, node);
          frame.stroke(&circle,
             canvas::Stroke::default().with_color(Color::BLACK).with_width(2.0).with_line_join(canvas::LineJoin::Round));
+         if node.is_accepting {
+            let outer_circle = canvas::Path::circle(node.pos, (NODE_SIZE + (NODE_SIZE >> 3)) as f32);
+            frame.stroke(&outer_circle,
+               canvas::Stroke::default().with_color(Color::BLACK).with_width(2.0).with_line_join(canvas::LineJoin::Round));
+         }
          frame.fill_text(text);
       }
       for connection in &self.dfa.connections {
@@ -154,8 +167,8 @@ impl canvas::Program<Message> for DfaWindow {
          cursor.position().unwrap_or_default());
       let act_pos = iced::Point::new(pos.x, pos.y);
       let bound_pos = iced::Point::new(pos.x - bounds.x, pos.y - bounds.y);
-      let node: Option<&Node> = self.dfa.nodes.locate_within_distance(
-         Node { pos: act_pos, .. },
+      let node_pt: Option<&NodePoint> = self.dfa.node_points.locate_within_distance(
+         NodePoint { pos: act_pos, node_index: 0 },
          (NODE_SIZE.pow(2) << 1) as f32).next();
 
 
@@ -163,12 +176,12 @@ impl canvas::Program<Message> for DfaWindow {
          canvas::Event::Mouse(mouse::Event::ButtonPressed(mouse::Button::Left)) => {
             
             let message = 
-               if exists && let Some(node) = node {
-                  *interaction = Interaction::AddCon { init: *node };
+               if exists && let Some(node_pt) = node_pt {
+                  *interaction = Interaction::AddCon { init_index: node_pt.node_index };
                   None
                } else {
-                  let nearest = self.dfa.nodes.nearest_neighbor_with_distance_2(
-                     Node {pos: act_pos, .. } );
+                  let nearest = self.dfa.node_points.nearest_neighbor_with_distance_2(
+                     NodePoint { pos: act_pos, node_index: 0 });
                   let float = if let Some((_, distance)) = nearest {
                         distance
                      } else {
@@ -186,16 +199,16 @@ impl canvas::Program<Message> for DfaWindow {
 
          
          canvas::Event::Mouse(mouse::Event::ButtonReleased(mouse::Button::Left)) => {
-            if let Interaction::AddCon { init: init_node } = *interaction {
-               if let Some(end_node) = node {
+            if let Interaction::AddCon { init_index } = *interaction {
+               if let Some(end_pt) = node_pt {
                   
-                  let start_node = self.dfa.nodes.locate_within_distance(
-                     Node { pos: init_node.pos, index: None, is_accepting: false, is_initial: false },
-                     0.1).last().unwrap_or(end_node);
+                  let start_pt = self.dfa.node_points.locate_within_distance(
+                     NodePoint { pos: self.dfa.nodes[init_index].pos, node_index: init_index },
+                     0.1).last().unwrap_or(end_pt);
                      
                   let message = {
                      *interaction = Interaction::None;
-                     Some(Message::AddCon { start: start_node.pos, end: end_node.pos,
+                     Some(Message::AddCon { start: start_pt.pos, end: end_pt.pos,
                         symbol: self.dfa.connections.len().to_string().chars().next().unwrap_or('?') }) //TODO: have a better way to determine symbol
                   };
                   Some(message.map(canvas::Action::publish)
@@ -220,7 +233,15 @@ impl canvas::Program<Message> for DfaWindow {
                   Some(Message::EditCon { index: label_pt.conn_index })
                };
                Some(message.map(canvas::Action::publish).unwrap_or(canvas::Action::request_redraw()).and_capture(),)
-            } else {
+            } else if let Some((node_pt, dist)) = self.dfa.node_points.nearest_neighbor_with_distance_2(
+               NodePoint::generate(|a| if a == 1 {bound_pos.y } else {bound_pos.x}),) &&
+                  matches!(interaction, Interaction::None) && dist < NODE_SIZE.pow(2) as f32{
+                  let message = {
+                     *interaction = Interaction::None;
+                     Some(Message::AcceptingNode { index: node_pt.node_index })
+                  };
+                  Some(message.map(canvas::Action::publish).unwrap_or(canvas::Action::request_redraw()).and_capture(),)
+               } else {
                *interaction = Interaction::None;
                None
             }
@@ -294,7 +315,7 @@ impl DfaInstance {
             })
             .map(|(j, _)| j)
             .collect();
-         paths.push((i, compute_arrow(conn, i, &parallel_indices, &self.nodes)));
+         paths.push((i, compute_arrow(conn, i, &parallel_indices, &self.node_points)));
       }
       for (i, path) in paths {
          let conn = &mut self.connections[i];
@@ -315,6 +336,16 @@ impl DfaInstance {
       self.rebuild_label_points();
    }
 
+   /// Rebuild the node-point spatial index from current node positions.
+   fn rebuild_node_points(&mut self) {
+      let points: Vec<NodePoint> = self.nodes
+         .iter()
+         .enumerate()
+         .map(|(i, n)| NodePoint { pos: n.pos, node_index: i })
+         .collect();
+      self.node_points = RTree::bulk_load(points);
+   }
+
    /// Rebuild the label-point spatial index from current connection label positions.
    fn rebuild_label_points(&mut self) {
       let points: Vec<LabelPoint> = self.connections
@@ -330,23 +361,27 @@ impl DfaInstance {
    pub fn update(&mut self, message: Message) {
       match message {
          Message::AddNode {pos} => {
-            self.nodes.insert(Node { pos: iced::Point::new(pos.x, pos.y), index: Some(self.nodes.size()),
-               is_accepting: self.nodes.size() == 0, is_initial: false });
+            self.nodes.push(Node {
+               pos: iced::Point::new(pos.x, pos.y),
+               is_accepting: false,
+               is_initial: false,
+            });
+            self.rebuild_node_points();
          }
 
          Message::AddCon {start, end, symbol} => {
-            let start_act = self.nodes.nearest_neighbor(
-               Node { pos: start, index: None, is_accepting: false, is_initial: false });
-            let end_act = self.nodes.nearest_neighbor(
-               Node { pos: end, index: None, is_accepting: false, is_initial: false });
+            let start_act = self.node_points.nearest_neighbor(
+               NodePoint { pos: start, node_index: 0 });
+            let end_act = self.node_points.nearest_neighbor(
+               NodePoint { pos: end, node_index: 0 });
             if start_act.is_none() || end_act.is_none() {
                log::error!("Failed to find nodes for connection: start node at {:?} {}, end node at {:?} {}",
                   start, start_act.is_none(), end, end_act.is_none());
                return;
             }
             self.connections.push(Connection::new(
-               (start_act.unwrap().pos, start_act.unwrap().index.unwrap_or(0)),
-               (end_act.unwrap().pos, end_act.unwrap().index.unwrap_or(0)),
+               (start_act.unwrap().pos, start_act.unwrap().node_index),
+               (end_act.unwrap().pos, end_act.unwrap().node_index),
                symbol,
                iced::Point::new((start.x + end.x) / 2.0, (start.y + end.y) / 2.0),
                None,
@@ -389,15 +424,20 @@ impl DfaInstance {
             }
             self.conn_edit = None;
          }
+         Message::AcceptingNode { index } => {
+            if let Some(node) = self.nodes.get_mut(index) {
+               node.is_accepting = !node.is_accepting;
+            }
+         }
       }
    }
 }
 
 /// A helper function to generate a [canvas::Text]
 /// object for a given node, displaying its index as "S{index}"
-fn get_node_text(node: &Node) -> canvas::Text{
+fn get_node_text(index: usize, node: &Node) -> canvas::Text{
    canvas::Text {
-      content: format!("S{}", node.index.unwrap_or(0)),
+      content: format!("S{index}"),
       position: iced::Point::new(node.pos.x, node.pos.y),
       color: Color::BLACK,
       size: NODE_TEXT_SIZE,
@@ -410,38 +450,34 @@ fn get_node_text(node: &Node) -> canvas::Text{
    }
 }
 
-/// A node in the DFA, represented as a point with additional metadata
-/// such as whether it is an accepting or initial state
-#[derive(Debug, Clone, Copy, PartialEq, Default)]
-pub struct Node {
+/// A node position in the spatial index, mapping coordinates to a node index.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct NodePoint {
    /// The position of the node on the canvas
    pub pos: iced::Point<f32>,
-   /// The index of the node in the RTree, used for referencing in connections
-   pub index: Option<usize> = None,
-   /// Whether the node is an accepting state
-   pub is_accepting: bool = false,
-   /// Whether the node is an initial state
-   pub is_initial: bool = false,
+   /// The index of the node in [`DfaInstance::nodes`]
+   pub node_index: usize,
 }
 
+impl Point for NodePoint {
+   type Scalar = f32;
+   const DIMENSIONS: usize = 2;
 
-impl Point for Node {
-
-    fn generate(mut generator: impl FnMut(usize) -> Self::Scalar) -> Self {
-      Node {
+   fn generate(mut generator: impl FnMut(usize) -> Self::Scalar) -> Self {
+      NodePoint {
          pos: iced::Point::new(generator(0), generator(1)),
-         index: None,
-         is_accepting: false,
-         is_initial: false,
+         node_index: 0,
       }
-    }
-    fn nth(&self, index: usize) -> Self::Scalar {
+   }
+
+   fn nth(&self, index: usize) -> Self::Scalar {
       match index {
          0 => self.pos.x,
          1 => self.pos.y,
          _ => unreachable!(),
       }
-    }
+   }
+
    fn nth_mut(&mut self, index: usize) -> &mut Self::Scalar {
       match index {
          0 => &mut self.pos.x,
@@ -449,10 +485,18 @@ impl Point for Node {
          _ => unreachable!(),
       }
    }
-    
-   type Scalar = f32;
-    
-   const DIMENSIONS: usize = 2;
+}
+
+/// A node in the DFA, represented as a point with additional metadata
+/// such as whether it is an accepting or initial state
+#[derive(Debug, Clone, Copy, PartialEq, Default)]
+pub struct Node {
+   /// The position of the node on the canvas
+   pub pos: iced::Point<f32>,
+   /// Whether the node is an accepting state
+   pub is_accepting: bool = false,
+   /// Whether the node is an initial state
+   pub is_initial: bool = false,
 }
 
 
@@ -465,10 +509,10 @@ pub enum Interaction {
    None,
 
    /// User is adding a connection by dragging from one node to another,
-   /// with the initial node stored in `init`
+   /// with the initial node index stored in `init_index`
    AddCon{
-      /// The starting point of the connection
-      init: Node
+      /// The index of the starting node
+      init_index: usize
    },
 
    /// User is editing a connection, with the connection being edited stored in `conn`
