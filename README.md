@@ -11,3 +11,7 @@ Langview is licensed under the [GNU AGPLv3](./LICENCE)
 
 # Contributing
 Information about contributing to langviewer can be found in [CONTRIBUTING.md](./CONTRIBUTING.md)
+
+## Custom Commands
+The Cargo project for langviewer has the following custom `cargo` commands
+ * `own-docs`: generates documentation for langviewer using RustDoc only generating documentation for langviewer, linking to external documentation hosts for any external crates used.
